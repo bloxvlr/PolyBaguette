@@ -1,7 +1,6 @@
-// Supabase Config
 const supabaseUrl = 'https://revviobatyajeuxucklz.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJldnZpb2JhdHlhamV1eHVja2x6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5NDMxMjIsImV4cCI6MjA5NDUxOTEyMn0.QCTwOY0peGp7zPkQmSWoPfzbcW6Jmg3CkMJSeYQ-ybM';
-const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+const supabaseClient = window.supabase ? window.supabase.createClient(supabaseUrl, supabaseKey) : null;
 
 // State
 let state = {
@@ -26,11 +25,22 @@ const formatVol = (vol) => {
 };
 
 document.addEventListener('DOMContentLoaded', async () => {
-    lucide.createIcons();
+    try {
+        if (window.lucide) lucide.createIcons();
+    } catch(e) { console.error(e); }
+    
     initTicker();
     
+    if (!supabaseClient) {
+        showToast("Erreur de connexion à la base de données (Bloqueur de pub ?)", "error");
+        document.getElementById('loadingMarkets').style.display = 'none';
+        state.markets = getFallbackMarkets();
+        renderMarkets(state.markets);
+        return;
+    }
+    
     // Setup Supabase Auth listener
-    supabase.auth.onAuthStateChange((event, session) => {
+    supabaseClient.auth.onAuthStateChange((event, session) => {
         state.session = session;
         if (session) {
             fetchUserProfile(session.user.id);
@@ -41,12 +51,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    // Check current session
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session) {
-        state.session = session;
-        await fetchUserProfile(session.user.id);
-    }
+    // Check current session safely
+    try {
+        const { data, error } = await supabaseClient.auth.getSession();
+        if (data && data.session) {
+            state.session = data.session;
+            await fetchUserProfile(data.session.user.id);
+        }
+    } catch(e) { console.error("Session error:", e); }
     
     await loadMarkets();
     await loadRecentTransactions();
@@ -55,7 +67,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 // --- AUTH & PROFILES ---
 
 async function loginWithGoogle() {
-    const { error } = await supabase.auth.signInWithOAuth({
+    const { error } = await supabaseClient.auth.signInWithOAuth({
         provider: 'google',
         options: {
             redirectTo: window.location.origin
@@ -65,14 +77,14 @@ async function loginWithGoogle() {
 }
 
 async function logout() {
-    await supabase.auth.signOut();
+    await supabaseClient.auth.signOut();
     document.getElementById('walletDropdown').classList.remove('show');
     showToast("Déconnecté", "info");
     navigateTo('home');
 }
 
 async function fetchUserProfile(userId) {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
         .from('profiles')
         .select('*')
         .eq('id', userId)
@@ -139,7 +151,7 @@ async function handleSendMoney(e) {
     btn.disabled = true;
 
     // Execute RPC function
-    const { data, error } = await supabase.rpc('send_plc', { 
+    const { data, error } = await supabaseClient.rpc('send_plc', { 
         receiver_email: email, 
         transfer_amount: amount 
     });
@@ -161,29 +173,40 @@ async function handleSendMoney(e) {
 // --- MARKETS FETCHING ---
 
 async function loadMarkets() {
-    document.getElementById('loadingMarkets').style.display = 'block';
+    const loadingEl = document.getElementById('loadingMarkets');
+    if(loadingEl) loadingEl.style.display = 'block';
     
-    // Fetch markets and their outcomes
-    const { data: markets, error } = await supabase
-        .from('markets')
-        .select('*, outcomes(*)')
-        .order('created_at', { ascending: false });
+    try {
+        // Fetch markets and their outcomes
+        const { data: markets, error } = await supabaseClient
+            .from('markets')
+            .select('*, outcomes(*)')
+            .order('created_at', { ascending: false });
+            
+        if(loadingEl) loadingEl.style.display = 'none';
         
-    document.getElementById('loadingMarkets').style.display = 'none';
-    
-    if (error) {
-        showToast("Erreur de chargement des marchés", "error");
-        return;
-    }
-    
-    state.markets = markets || [];
-    
-    // Si la base est vide, on ajoute des faux marchés localement pour la démo
-    if (state.markets.length === 0) {
+        if (error) {
+            console.error("Erreur DB:", error);
+            showToast("Affichage des marchés de démonstration (la base de données est vide ou inaccessible).", "error");
+            state.markets = getFallbackMarkets();
+            renderMarkets(state.markets);
+            return;
+        }
+        
+        state.markets = markets || [];
+        
+        // Si la base est vide, on ajoute des faux marchés localement pour la démo
+        if (state.markets.length === 0) {
+            state.markets = getFallbackMarkets();
+        }
+        
+        renderMarkets(state.markets);
+    } catch (e) {
+        console.error("Fetch error:", e);
+        if(loadingEl) loadingEl.style.display = 'none';
         state.markets = getFallbackMarkets();
+        renderMarkets(state.markets);
     }
-    
-    renderMarkets(state.markets);
 }
 
 // --- UI / NAVIGATION ---
@@ -435,7 +458,7 @@ async function executeTrade() {
     const shares = state.tradeAmount / prob;
 
     // Supabase insertions
-    const { error: posError } = await supabase.from('positions').insert({
+    const { error: posError } = await supabaseClient.from('positions').insert({
         user_id: state.user.id,
         market_id: state.currentMarket.id,
         outcome_id: state.selectedOutcome.id,
@@ -450,7 +473,7 @@ async function executeTrade() {
     }
     
     // Update balance
-    await supabase.from('profiles').update({ balance: state.user.balance - state.tradeAmount }).eq('id', state.user.id);
+    await supabaseClient.from('profiles').update({ balance: state.user.balance - state.tradeAmount }).eq('id', state.user.id);
     
     await fetchUserProfile(state.session.user.id);
     
@@ -483,7 +506,7 @@ async function handleCreateMarket(e) {
     btn.innerText = "Création...";
     
     // Insert Market
-    const { data: marketData, error: mError } = await supabase.from('markets').insert({
+    const { data: marketData, error: mError } = await supabaseClient.from('markets').insert({
         creator_id: state.user.id,
         title,
         category,
@@ -500,13 +523,13 @@ async function handleCreateMarket(e) {
     }
     
     // Insert Outcomes (Oui / Non par défaut pour simplifier)
-    await supabase.from('outcomes').insert([
+    await supabaseClient.from('outcomes').insert([
         { market_id: marketData.id, name: 'Oui', probability: 50, current_price: 0.5 },
         { market_id: marketData.id, name: 'Non', probability: 50, current_price: 0.5 }
     ]);
     
     // Deduct liquidity
-    await supabase.from('profiles').update({ balance: state.user.balance - liquidity }).eq('id', state.user.id);
+    await supabaseClient.from('profiles').update({ balance: state.user.balance - liquidity }).eq('id', state.user.id);
     
     await fetchUserProfile(state.session.user.id);
     await loadMarkets();
@@ -530,7 +553,7 @@ async function handleEditProfile(e) {
     const newName = document.getElementById('editPseudo').value;
     const newAvatar = document.getElementById('editAvatar').value;
     
-    const { error } = await supabase.from('profiles').update({
+    const { error } = await supabaseClient.from('profiles').update({
         username: newName,
         avatar_url: newAvatar
     }).eq('id', state.user.id);
@@ -560,7 +583,7 @@ function handleSearch() {
     const mResults = state.markets.filter(m => m.title.toLowerCase().includes(q) || m.category.toLowerCase().includes(q));
     
     // For users, we should ideally fetch from Supabase, but let's do a quick query
-    supabase.from('profiles').select('id, username, avatar_url').ilike('username', `%${q}%`).limit(3).then(({data: uResults}) => {
+    supabaseClient.from('profiles').select('id, username, avatar_url').ilike('username', `%${q}%`).limit(3).then(({data: uResults}) => {
         let html = '';
         if (mResults.length > 0) {
             html += '<div class="sr-cat">Marchés</div>';
@@ -588,7 +611,7 @@ function handleSearch() {
 async function renderPortfolio() {
     if(!state.user) return;
     
-    const { data: positions } = await supabase
+    const { data: positions } = await supabaseClient
         .from('positions')
         .select('*, outcomes(name), markets(title)')
         .eq('user_id', state.user.id);
@@ -638,7 +661,7 @@ async function renderPortfolio() {
 
 // --- RENDER LEADERBOARD ---
 async function renderLeaderboard() {
-    const { data: profiles } = await supabase
+    const { data: profiles } = await supabaseClient
         .from('profiles')
         .select('*')
         .order('balance', { ascending: false })
