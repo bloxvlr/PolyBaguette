@@ -113,6 +113,11 @@ async function fetchUserProfile(userId) {
         .single();
         
     if (data) {
+        if (data.banned) {
+            alert("Votre compte a été banni par un administrateur.");
+            logout();
+            return;
+        }
         state.user = data;
         state.isLoggedIn = true;
         updateAuthUI();
@@ -1181,8 +1186,150 @@ function renderProfile() {
         }
     `;
     content.appendChild(favSection);
+
+    // --- ADMIN PANEL ---
+    if (state.session && state.session.user.email === 'the.furtive.guys@gmail.com') {
+        const adminSection = document.createElement('div');
+        adminSection.style.cssText = 'margin-top:40px; padding-top:20px; border-top:2px solid var(--accent-blue);';
+        adminSection.innerHTML = `
+            <h2 style="color:var(--accent-blue); margin-bottom:20px; display:flex; align-items:center; gap:10px;">
+                <i data-lucide="shield-check"></i> Panel Administrateur
+            </h2>
+            
+            <div class="profile-stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:16px; margin-bottom:24px;">
+                <div class="portfolio-card" style="border: 1px solid var(--accent-blue);">
+                    <div class="portfolio-label">Donner des PLC</div>
+                    <input type="email" id="adminTargetEmail" placeholder="Email de l'utilisateur" style="width:100%; padding:8px; margin:8px 0; background:var(--bg-main); border:1px solid var(--border-color); color:white; border-radius:4px;">
+                    <input type="number" id="adminAmount" placeholder="Montant" style="width:100%; padding:8px; margin-bottom:8px; background:var(--bg-main); border:1px solid var(--border-color); color:white; border-radius:4px;">
+                    <button class="btn-primary" onclick="adminGivePLC()" style="width:100%;">Valider l'envoi</button>
+                </div>
+                
+                <div class="portfolio-card" style="border: 1px solid var(--accent-red);">
+                    <div class="portfolio-label">Gérer Utilisateur</div>
+                    <input type="email" id="adminActionEmail" placeholder="Email de l'utilisateur" style="width:100%; padding:8px; margin:8px 0; background:var(--bg-main); border:1px solid var(--border-color); color:white; border-radius:4px;">
+                    <div style="display:flex; gap:8px;">
+                        <button class="btn-danger" onclick="adminBanUser(true)" style="flex:1; font-size:0.8rem;">Bannir</button>
+                        <button class="btn-primary" onclick="adminBanUser(false)" style="flex:1; font-size:0.8rem; background:var(--accent-green);">Débannir</button>
+                    </div>
+                    <input type="text" id="adminNewName" placeholder="Nouveau pseudo" style="width:100%; padding:8px; margin-top:8px; background:var(--bg-main); border:1px solid var(--border-color); color:white; border-radius:4px;">
+                    <button class="btn-primary" onclick="adminRenameUser()" style="width:100%; margin-top:4px; font-size:0.8rem;">Renommer</button>
+                </div>
+
+                <div class="portfolio-card">
+                    <div class="portfolio-label">Supprimer un Marché</div>
+                    <input type="text" id="adminMarketId" placeholder="ID du marché (UUID)" style="width:100%; padding:8px; margin:8px 0; background:var(--bg-main); border:1px solid var(--border-color); color:white; border-radius:4px;">
+                    <button class="btn-danger" onclick="adminDeleteMarketUI()" style="width:100%;">Supprimer</button>
+                </div>
+            </div>
+
+            <h3 style="margin-bottom:16px;"><i data-lucide="users"></i> Liste des Utilisateurs</h3>
+            <div id="adminUserList" style="background:var(--bg-card); border:1px solid var(--border-color); border-radius:12px; overflow:hidden;">
+                <div style="padding:20px; text-align:center; color:var(--text-muted);">Chargement des utilisateurs...</div>
+            </div>
+        `;
+        content.appendChild(adminSection);
+        adminLoadUsers();
+    }
     
     setTimeout(() => lucide.createIcons(), 50);
+}
+
+// --- ADMIN FUNCTIONS ---
+
+async function adminGivePLC() {
+    const email = document.getElementById('adminTargetEmail').value;
+    const amount = parseFloat(document.getElementById('adminAmount').value);
+    if(!email || isNaN(amount)) return showToast("Données invalides", "error");
+    
+    const { error } = await supabaseClient.rpc('admin_give_plc', { target_email: email, amount: amount });
+    if(error) showToast("Erreur: " + error.message, "error");
+    else {
+        showToast(`Donné ${amount} PLC à ${email}`, "success");
+        adminLoadUsers();
+        if(email === state.session.user.email) fetchUserProfile(state.session.user.id);
+    }
+}
+
+async function adminBanUser(isBan) {
+    const email = document.getElementById('adminActionEmail').value;
+    if(!email) return showToast("Email requis", "error");
+    
+    const rpcName = isBan ? 'admin_ban_user' : 'admin_unban_user';
+    const { error } = await supabaseClient.rpc(rpcName, { target_email: email });
+    if(error) showToast("Erreur: " + error.message, "error");
+    else {
+        showToast(isBan ? `Utilisateur ${email} banni` : `Utilisateur ${email} débanni`, "success");
+        adminLoadUsers();
+    }
+}
+
+async function adminRenameUser() {
+    const email = document.getElementById('adminActionEmail').value;
+    const newName = document.getElementById('adminNewName').value;
+    if(!email || !newName) return showToast("Données incomplètes", "error");
+    
+    const { error } = await supabaseClient.rpc('admin_rename_user', { target_email: email, new_username: newName });
+    if(error) showToast("Erreur: " + error.message, "error");
+    else {
+        showToast(`Utilisateur ${email} renommé en ${newName}`, "success");
+        adminLoadUsers();
+    }
+}
+
+async function adminDeleteMarketUI() {
+    const id = document.getElementById('adminMarketId').value;
+    if(!id) return showToast("ID requis", "error");
+    if(!confirm("Supprimer ce marché et toutes les transactions liées ?")) return;
+    
+    const { error } = await supabaseClient.rpc('admin_delete_market', { market_id_param: id });
+    if(error) showToast("Erreur: " + error.message, "error");
+    else {
+        showToast("Marché supprimé avec succès", "success");
+        loadMarkets();
+    }
+}
+
+async function adminLoadUsers() {
+    const container = document.getElementById('adminUserList');
+    if(!container) return;
+    
+    const { data, error } = await supabaseClient.rpc('admin_get_users');
+    if(error) {
+        container.innerHTML = `<div style="padding:20px; color:var(--accent-red);">Erreur: ${error.message}</div>`;
+        return;
+    }
+    
+    if(!data || data.length === 0) {
+        container.innerHTML = `<div style="padding:20px; text-align:center;">Aucun utilisateur</div>`;
+        return;
+    }
+    
+    container.innerHTML = `
+        <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
+            <thead>
+                <tr style="text-align:left; background:rgba(255,255,255,0.05);">
+                    <th style="padding:12px;">Pseudo</th>
+                    <th style="padding:12px;">Email</th>
+                    <th style="padding:12px;">Solde</th>
+                    <th style="padding:12px;">Statut</th>
+                    <th style="padding:12px;">Créé le</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${data.map(u => `
+                    <tr style="border-top:1px solid var(--border-color); ${u.banned ? 'background:rgba(235,87,87,0.05);' : ''}">
+                        <td style="padding:12px;">${u.username}</td>
+                        <td style="padding:12px; color:var(--text-muted);">${u.email}</td>
+                        <td style="padding:12px; font-weight:600;">${u.balance.toFixed(2)} PLC</td>
+                        <td style="padding:12px;">
+                            ${u.banned ? '<span style="color:var(--accent-red); font-weight:700;">BANNI</span>' : '<span style="color:var(--accent-green);">ACTIF</span>'}
+                        </td>
+                        <td style="padding:12px; color:var(--text-muted);">${new Date(u.created_at).toLocaleDateString()}</td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    `;
 }
 
 function confirmDeleteAccount() {
