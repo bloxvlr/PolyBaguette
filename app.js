@@ -156,27 +156,45 @@ function updateWalletBalances() {
 }
 
 async function loadWalletTransactions() {
-    if(!state.user || !supabaseClient) return;
+    if(!state.user || !supabaseClient || !state.session) return;
     
     let html = '';
     try {
-        const { data: txs } = await supabaseClient.from('transactions')
+        const userEmail = state.session.user.email;
+        const userId = state.user.id;
+        
+        let txs = [];
+        // On essaye avec sender_id d'abord
+        let { data, error } = await supabaseClient.from('transactions')
             .select('*')
-            // Cherche par email si possible, selon comment la table est construite
-            .or(`sender_email.eq.${state.user.email},receiver_email.eq.${state.user.email}`)
+            .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
             .order('created_at', { ascending: false })
-            .limit(5);
+            .limit(10);
+            
+        if (error) {
+            // Si ça échoue, on essaye avec les emails
+            const { data: dataEmail } = await supabaseClient.from('transactions')
+                .select('*')
+                .or(`sender_email.eq.${userEmail},receiver_email.eq.${userEmail}`)
+                .order('created_at', { ascending: false })
+                .limit(10);
+            txs = dataEmail || [];
+        } else {
+            txs = data || [];
+        }
             
         if (txs && txs.length > 0) {
             html += txs.map(t => {
-                const isSender = t.sender_email === state.user.email;
+                const isSender = (t.sender_id === userId) || (t.sender_email === userEmail);
                 const color = isSender ? 'var(--accent-red)' : 'var(--accent-green)';
                 const sign = isSender ? '-' : '+';
                 const label = isSender ? 'Envoyé' : 'Reçu';
+                const amount = t.amount || t.transfer_amount || 0;
+                
                 return `
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px; font-size: 0.85rem;">
                         <div style="color: var(--text-muted);"><i data-lucide="${isSender ? 'arrow-up-right' : 'arrow-down-left'}" style="width:14px; height:14px; vertical-align:middle; margin-right:4px;"></i>${label}</div>
-                        <div style="color: ${color}; font-weight: 600;">${sign}${t.amount} PLC</div>
+                        <div style="color: ${color}; font-weight: 600;">${sign}${amount} PLC</div>
                     </div>
                 `;
             }).join('');
