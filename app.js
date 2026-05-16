@@ -1,13 +1,19 @@
-// app.js
+// Supabase Config
+const supabaseUrl = 'https://revviobatyajeuxucklz.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJldnZpb2JhdHlhamV1eHVja2x6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5NDMxMjIsImV4cCI6MjA5NDUxOTEyMn0.QCTwOY0peGp7zPkQmSWoPfzbcW6Jmg3CkMJSeYQ-ybM';
+const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
 
 // State
 let state = {
     isLoggedIn: false,
-    user: null,
+    user: null, // from profiles table
+    session: null,
+    markets: [],
     currentMarket: null,
-    tradeMode: 'buy', // 'buy' | 'sell'
-    orderType: 'market', // 'market' | 'limit'
-    tradeAmount: 0
+    tradeMode: 'buy', 
+    tradeAmount: 0,
+    selectedOutcome: null,
+    activeCategory: 'all'
 };
 
 // Formatting utilities
@@ -19,194 +25,74 @@ const formatVol = (vol) => {
     return '$' + vol;
 };
 
-// Initialize
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+    lucide.createIcons();
     initTicker();
-    renderMarkets(MOCK_MARKETS);
-    renderNews();
-    renderTopics();
     
-    // Check if user is logged in (mock)
-    const savedUser = localStorage.getItem('polyUser');
-    if (savedUser) {
-        state.isLoggedIn = true;
-        state.user = JSON.parse(savedUser);
-        updateAuthUI();
+    // Setup Supabase Auth listener
+    supabase.auth.onAuthStateChange((event, session) => {
+        state.session = session;
+        if (session) {
+            fetchUserProfile(session.user.id);
+        } else {
+            state.isLoggedIn = false;
+            state.user = null;
+            updateAuthUI();
+        }
+    });
+
+    // Check current session
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+        state.session = session;
+        await fetchUserProfile(session.user.id);
     }
     
-    // Initialize Lucide icons
-    lucide.createIcons();
+    await loadMarkets();
+    await loadRecentTransactions();
 });
 
-// Google Auth Initialization
-window.onload = function () {
-    google.accounts.id.initialize({
-      client_id: "736237428802-lub0be3mmmctafqjv0bp12fr9ho40uv0.apps.googleusercontent.com",
-      callback: handleCredentialResponse
+// --- AUTH & PROFILES ---
+
+async function loginWithGoogle() {
+    const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+            redirectTo: window.location.origin
+        }
     });
-    
-    const renderOptions = { theme: "filled_black", size: "large", width: 330 };
-    
-    const loginBtn = document.getElementById("googleBtnLogin");
-    if (loginBtn) {
-        google.accounts.id.renderButton(loginBtn, renderOptions);
-    }
-    
-    const registerBtn = document.getElementById("googleBtnRegister");
-    if (registerBtn) {
-        google.accounts.id.renderButton(registerBtn, renderOptions);
-    }
-};
-
-function decodeJwtResponse(token) {
-    let base64Url = token.split('.')[1];
-    let base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    let jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
-        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-    }).join(''));
-
-    return JSON.parse(jsonPayload);
+    if (error) showToast("Erreur de connexion", "error");
 }
 
-function handleCredentialResponse(response) {
-    const payload = decodeJwtResponse(response.credential);
-    
-    // Check if user exists (we use their Google name as username)
-    let savedUser = localStorage.getItem('polyUser');
-    if (savedUser) {
-        savedUser = JSON.parse(savedUser);
-        if (savedUser.email === payload.email) {
-            state.user = savedUser;
-            showToast(`Bon retour via Google, ${payload.given_name || payload.name} !`, 'success');
-        } else {
-            // New user via Google overriding current saved user
-            createNewGoogleUser(payload);
-        }
-    } else {
-        createNewGoogleUser(payload);
-    }
-    
-    state.isLoggedIn = true;
-    closeModal('loginModal');
-    closeModal('registerModal');
-    updateAuthUI();
-}
-
-function createNewGoogleUser(payload) {
-    state.user = {
-        username: payload.given_name || payload.name.split(' ')[0],
-        email: payload.email,
-        picture: payload.picture,
-        balance: 100, // 100 PLC offerts
-        positions: [],
-        trades: 0,
-        joined: new Date().toISOString()
-    };
-    localStorage.setItem('polyUser', JSON.stringify(state.user));
-    showToast(`Bienvenue ${state.user.username} ! 100 PLC offerts`, 'success');
-}
-
-// Ticker
-function initTicker() {
-    const tickerContent = document.getElementById('tickerContent');
-    tickerContent.innerHTML = MOCK_TICKER.map(t => `<span class="ticker-item">${t}</span>`).join('');
-    // Duplicate for seamless loop
-    tickerContent.innerHTML += tickerContent.innerHTML;
-}
-
-// Navigation
-function navigateTo(pageId) {
-    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-    document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
-    
-    if(pageId === 'home') {
-        document.getElementById('homePage').classList.add('active');
-        document.getElementById('navHome').classList.add('active');
-        renderMarkets(MOCK_MARKETS);
-    } else if (pageId === 'portfolio') {
-        if(!state.isLoggedIn) {
-            showToast('Vous devez être connecté pour voir votre Fournil', 'error');
-            return;
-        }
-        document.getElementById('portfolioPage').classList.add('active');
-        document.getElementById('navPortfolio').classList.add('active');
-        renderPortfolio();
-    } else if (pageId === 'leaderboard') {
-        document.getElementById('leaderboardPage').classList.add('active');
-        document.getElementById('navLeaderboard').classList.add('active');
-        renderLeaderboard();
-    } else if (pageId === 'profile') {
-        if(!state.isLoggedIn) return;
-        document.getElementById('profilePage').classList.add('active');
-        renderProfile();
-    }
-    
-    setTimeout(() => lucide.createIcons(), 50);
-}
-
-// Modals
-function openModal(id) {
-    document.getElementById(id).classList.add('active');
-}
-function closeModal(id) {
-    document.getElementById(id).classList.remove('active');
-}
-
-// Authentication
-function handleRegister(e) {
-    e.preventDefault();
-    const username = document.getElementById('registerUsername').value;
-    
-    state.user = {
-        username,
-        balance: 100, // 100 PLC offerts !
-        positions: [],
-        trades: 0,
-        joined: new Date().toISOString()
-    };
-    state.isLoggedIn = true;
-    localStorage.setItem('polyUser', JSON.stringify(state.user));
-    
-    closeModal('registerModal');
-    updateAuthUI();
-    showToast(`Bienvenue ${username} ! 100 PLC offerts`, 'success');
-}
-
-function handleLogin(e) {
-    e.preventDefault();
-    const username = document.getElementById('loginUsername').value;
-    
-    // Mock login
-    state.user = JSON.parse(localStorage.getItem('polyUser')) || {
-        username,
-        balance: 100,
-        positions: [],
-        trades: 0,
-        joined: new Date().toISOString()
-    };
-    state.isLoggedIn = true;
-    
-    closeModal('loginModal');
-    updateAuthUI();
-    showToast(`Bon retour à la boulangerie, ${username} !`, 'success');
-}
-
-function logout() {
-    state.isLoggedIn = false;
-    state.user = null;
-    updateAuthUI();
+async function logout() {
+    await supabase.auth.signOut();
     document.getElementById('walletDropdown').classList.remove('show');
+    showToast("Déconnecté", "info");
     navigateTo('home');
 }
 
+async function fetchUserProfile(userId) {
+    const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+        
+    if (data) {
+        state.user = data;
+        state.isLoggedIn = true;
+        updateAuthUI();
+    }
+}
+
 function updateAuthUI() {
-    if (state.isLoggedIn) {
+    if (state.isLoggedIn && state.user) {
         document.getElementById('authButtons').style.display = 'none';
         document.getElementById('walletDisplay').style.display = 'block';
         document.getElementById('userAvatar').style.display = 'flex';
         
-        if (state.user.picture) {
-            document.getElementById('userAvatar').innerHTML = `<img src="${state.user.picture}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
+        if (state.user.avatar_url) {
+            document.getElementById('userAvatar').innerHTML = `<img src="${state.user.avatar_url}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
         } else {
             document.getElementById('userAvatar').innerHTML = `<span id="userAvatarLetter">${state.user.username.charAt(0).toUpperCase()}</span>`;
         }
@@ -224,138 +110,216 @@ function updateAuthUI() {
 function updateWalletBalances() {
     if(!state.user) return;
     const bal = state.user.balance;
-    const usdEquivalent = formatEuro(bal); // using formatEuro utility
+    const usdEquivalent = formatEuro(bal);
     
-    // Header
-    const wb = document.getElementById('walletBalance');
-    if(wb) wb.innerText = formatPC(bal);
-    
-    // Dropdown
-    const wdb = document.getElementById('walletDropdownBalance');
-    if(wdb) wdb.innerText = formatPC(bal) + ' PLC';
-    
-    const wde = document.getElementById('walletDropdownEuro');
-    if(wde) wde.innerText = `$ ${usdEquivalent} USD`;
-    
-    const wib = document.getElementById('walletItemBalance');
-    if(wib) wib.innerText = formatPC(bal);
-    
-    const wie = document.getElementById('walletItemEur');
-    if(wie) wie.innerText = `$ ${usdEquivalent}`;
+    document.getElementById('walletBalance').innerText = formatPC(bal);
+    document.getElementById('walletDropdownBalance').innerText = formatPC(bal) + ' PLC';
+    document.getElementById('walletDropdownEuro').innerText = `$ ${usdEquivalent} USD`;
+    document.getElementById('walletItemBalance').innerText = formatPC(bal);
+    document.getElementById('walletItemEur').innerText = `$ ${usdEquivalent}`;
 }
 
 function toggleWalletDropdown() {
     document.getElementById('walletDropdown').classList.toggle('show');
 }
 
-function handleSendMoney(e) {
+// --- SEND MONEY ---
+
+async function handleSendMoney(e) {
     e.preventDefault();
     if(!state.isLoggedIn) return;
     
     const email = document.getElementById('sendEmail').value;
     const amount = parseFloat(document.getElementById('sendAmount').value);
+    const btn = document.getElementById('btnSend');
     
-    if(state.user.balance < amount) {
-        showToast("Fonds insuffisants !", "error");
+    if (amount <= 0) return showToast("Montant invalide", "error");
+    
+    btn.innerText = "Envoi...";
+    btn.disabled = true;
+
+    // Execute RPC function
+    const { data, error } = await supabase.rpc('send_plc', { 
+        receiver_email: email, 
+        transfer_amount: amount 
+    });
+
+    btn.innerText = "Envoyer les PLC";
+    btn.disabled = false;
+
+    if (error) {
+        showToast(error.message || "Erreur lors de l'envoi", "error");
+    } else {
+        showToast(`Vous avez envoyé ${amount} PLC à ${email}`, "success");
+        closeModal('sendModal');
+        document.getElementById('sendEmail').value = '';
+        document.getElementById('sendAmount').value = '';
+        await fetchUserProfile(state.session.user.id); // refresh balance
+    }
+}
+
+// --- MARKETS FETCHING ---
+
+async function loadMarkets() {
+    document.getElementById('loadingMarkets').style.display = 'block';
+    
+    // Fetch markets and their outcomes
+    const { data: markets, error } = await supabase
+        .from('markets')
+        .select('*, outcomes(*)')
+        .order('created_at', { ascending: false });
+        
+    document.getElementById('loadingMarkets').style.display = 'none';
+    
+    if (error) {
+        showToast("Erreur de chargement des marchés", "error");
         return;
     }
     
-    state.user.balance -= amount;
-    localStorage.setItem('polyUser', JSON.stringify(state.user));
-    updateWalletBalances();
-    closeModal('sendModal');
-    showToast(`Vous avez envoyé ${amount} PLC à ${email}`, "success");
-    document.getElementById('sendEmail').value = '';
-    document.getElementById('sendAmount').value = '';
+    state.markets = markets || [];
+    
+    // Si la base est vide, on ajoute des faux marchés localement pour la démo
+    if (state.markets.length === 0) {
+        state.markets = getFallbackMarkets();
+    }
+    
+    renderMarkets(state.markets);
 }
 
-// Markets Rendering
-function renderMarkets(markets) {
-    const featured = markets.find(m => m.isFeatured);
-    if(featured) {
-        const fmElement = document.getElementById('featuredMarket');
-        if (fmElement) {
-            fmElement.innerHTML = `
-                <div class="fm-header">
-                    <img src="${featured.icon}" class="fm-icon">
-                    <div>
-                        <div class="fm-title">${featured.title}</div>
-                        <div class="fm-stats">
-                            <span>${formatVol(featured.volume)} Vol.</span>
-                            <span>Se termine le ${new Date(featured.endDate).toLocaleDateString()}</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="fm-outcomes">
-                    ${featured.outcomes.map(o => `
-                        <div class="fm-outcome">
-                            <span class="fm-outcome-name">${o.name}</span>
-                            <div class="fm-outcome-bar-container">
-                                <div class="fm-outcome-bar" style="width: ${o.prob}%"></div>
-                            </div>
-                            <span class="fm-outcome-prob">${o.prob}%</span>
-                        </div>
-                    `).join('')}
-                </div>
-            `;
-            fmElement.onclick = () => openMarketDetail(featured.id);
-        }
+// --- UI / NAVIGATION ---
+
+function navigateTo(pageId) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+    
+    if(pageId === 'home') {
+        document.getElementById('homePage').classList.add('active');
+        document.getElementById('navHome').classList.add('active');
+        renderMarkets(state.markets);
+    } else if (pageId === 'portfolio') {
+        if(!state.isLoggedIn) return showToast('Vous devez être connecté', 'error');
+        document.getElementById('portfolioPage').classList.add('active');
+        document.getElementById('navPortfolio').classList.add('active');
+        renderPortfolio();
+    } else if (pageId === 'leaderboard') {
+        document.getElementById('leaderboardPage').classList.add('active');
+        document.getElementById('navLeaderboard').classList.add('active');
+        renderLeaderboard();
+    } else if (pageId === 'profile') {
+        if(!state.isLoggedIn) return showToast('Vous devez être connecté', 'error');
+        document.getElementById('profilePage').classList.add('active');
+        renderProfile();
+    }
+    setTimeout(() => lucide.createIcons(), 50);
+}
+
+function openModal(id) { document.getElementById(id).classList.add('active'); }
+function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+// --- MARKETS RENDERING ---
+
+function filterCategory(cat, btnElement) {
+    state.activeCategory = cat;
+    document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+    if(btnElement) btnElement.classList.add('active');
+    
+    renderMarkets(state.markets);
+}
+
+function renderMarkets(marketsData) {
+    let filtered = marketsData;
+    if (state.activeCategory !== 'all') {
+        filtered = marketsData.filter(m => m.category.toLowerCase() === state.activeCategory.toLowerCase());
     }
     
     const grid = document.getElementById('marketsGrid');
-    if (grid) {
-        grid.innerHTML = markets.filter(m => !m.isFeatured).map(m => `
-            <div class="market-card" onclick="openMarketDetail('${m.id}')">
-                <div class="mc-header">
-                    <img src="${m.icon}" class="mc-icon">
-                    <div class="mc-title">${m.title}</div>
-                </div>
-                <div class="mc-outcomes">
-                    ${m.outcomes.slice(0, 2).map(o => `
-                        <div class="mc-outcome-row">
-                            <span class="mc-outcome-label">${o.name}</span>
-                            <div>
-                                <span class="mc-prob mr-2 ${o.name==='Oui' || o.name==='Up' ? 'text-green' : 'text-red'}">${o.prob}%</span>
-                                <div class="mc-btns">
-                                    <button class="mc-btn mc-btn-yes" onclick="event.stopPropagation(); fastTrade('${m.id}','${o.name}','buy')">Acheter</button>
-                                </div>
-                            </div>
-                        </div>
-                    `).join('')}
-                </div>
-                <div class="mc-footer">
-                    <span>${formatVol(m.volume)} Vol.</span>
-                    <span>${new Date(m.endDate).toLocaleDateString()}</span>
+    if (!grid) return;
+    
+    if (filtered.length === 0) {
+        grid.innerHTML = '<div style="grid-column: 1/-1; text-align:center; padding:40px; color:var(--text-muted)">Aucun marché trouvé dans cette catégorie.</div>';
+        return;
+    }
+    
+    const featured = filtered[0]; // first market as featured
+    const fmElement = document.getElementById('featuredMarket');
+    if (fmElement && featured) {
+        fmElement.innerHTML = `
+            <div class="fm-header">
+                <img src="${featured.icon_url || 'https://picsum.photos/100'}" class="fm-icon">
+                <div>
+                    <div class="fm-title">${featured.title}</div>
+                    <div class="fm-stats">
+                        <span>${formatVol(featured.volume || 0)} Vol.</span>
+                        <span>Se termine le ${new Date(featured.end_date).toLocaleDateString()}</span>
+                    </div>
                 </div>
             </div>
-        `).join('');
+            <div class="fm-outcomes">
+                ${(featured.outcomes || []).map(o => `
+                    <div class="fm-outcome">
+                        <span class="fm-outcome-name">${o.name}</span>
+                        <div class="fm-outcome-bar-container">
+                            <div class="fm-outcome-bar" style="width: ${o.probability}%"></div>
+                        </div>
+                        <span class="fm-outcome-prob">${o.probability}%</span>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+        fmElement.onclick = () => openMarketDetail(featured.id);
     }
+    
+    grid.innerHTML = filtered.slice(1).map(m => `
+        <div class="market-card" onclick="openMarketDetail('${m.id}')">
+            <div class="mc-header">
+                <img src="${m.icon_url || 'https://picsum.photos/100'}" class="mc-icon">
+                <div class="mc-title">${m.title}</div>
+            </div>
+            <div class="mc-outcomes">
+                ${(m.outcomes || []).slice(0, 2).map(o => `
+                    <div class="mc-outcome-row">
+                        <span class="mc-outcome-label">${o.name}</span>
+                        <div>
+                            <span class="mc-prob mr-2 ${o.name==='Oui' || o.name==='Up' ? 'text-green' : 'text-red'}">${o.probability}%</span>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+            <div class="mc-footer">
+                <span>${formatVol(m.volume || 0)} Vol.</span>
+                <span>${new Date(m.end_date).toLocaleDateString()}</span>
+            </div>
+        </div>
+    `).join('');
+    
+    setTimeout(() => lucide.createIcons(), 50);
 }
 
+// --- MARKET DETAIL & TRADING ---
+
 function openMarketDetail(id) {
-    const market = MOCK_MARKETS.find(m => m.id === id);
+    const market = state.markets.find(m => m.id === id);
     if(!market) return;
-    
     state.currentMarket = market;
     
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.getElementById('marketPage').classList.add('active');
     
-    document.getElementById('marketBreadcrumb').innerHTML = `Pétrins > ${market.category} > ${market.title}`;
+    document.getElementById('marketBreadcrumb').innerHTML = `Marchés > ${market.category} > ${market.title}`;
     
     document.getElementById('marketDetailHeader').innerHTML = `
-        <img src="${market.icon}" class="md-icon">
+        <img src="${market.icon_url || 'https://picsum.photos/100'}" class="md-icon">
         <div>
             <div class="md-title">${market.title}</div>
             <div class="md-stats">
-                <span><i data-lucide="award" class="icon-sm"></i> ${formatVol(market.volume)} Vol.</span>
-                <span><i data-lucide="calendar" class="icon-sm"></i> ${new Date(market.endDate).toLocaleDateString()}</span>
+                <span><i data-lucide="award" class="icon-sm"></i> ${formatVol(market.volume || 0)} Vol.</span>
+                <span><i data-lucide="calendar" class="icon-sm"></i> ${new Date(market.end_date).toLocaleDateString()}</span>
             </div>
         </div>
     `;
     
     document.getElementById('tradingPanelHeader').innerHTML = `
-        <img src="${market.icon}" class="tp-icon">
+        <img src="${market.icon_url || 'https://picsum.photos/100'}" class="tp-icon">
         <div class="tp-title">${market.title}</div>
     `;
     
@@ -363,7 +327,6 @@ function openMarketDetail(id) {
     renderTradingChoices(market);
     drawMockChart();
     
-    // default tabs
     document.getElementById('marketTabContent').innerHTML = `
         <h3>Règles du marché</h3>
         <p>${market.description}</p>
@@ -372,46 +335,42 @@ function openMarketDetail(id) {
 }
 
 function renderMarketOutcomes(market) {
-    document.getElementById('marketOutcomesList').innerHTML = market.outcomes.map(o => `
+    document.getElementById('marketOutcomesList').innerHTML = (market.outcomes || []).map(o => `
         <div class="md-outcome-row">
             <div class="md-outcome-left">
                 <div class="md-outcome-name">${o.name}</div>
-                <div class="md-outcome-vol">${o.volume ? formatVol(o.volume) + ' Vol.' : ''}</div>
             </div>
-            <div class="md-outcome-center">${o.prob}%</div>
+            <div class="md-outcome-center">${o.probability}%</div>
             <div class="md-outcome-right">
-                <button class="btn-buy-yes" onclick="setupTrade('${o.name}')">Oui ${o.yesPrice ? o.yesPrice+'¢' : ''}</button>
-                <button class="btn-buy-no" onclick="setupTrade('${o.name}')">Non ${o.noPrice ? o.noPrice+'¢' : ''}</button>
+                <button class="btn-buy-yes" onclick="setupTrade('${o.name}')">Miser</button>
             </div>
         </div>
     `).join('');
 }
 
 function renderTradingChoices(market) {
-    const isBinary = market.outcomes.length === 2 && (market.outcomes[0].name === 'Oui' || market.outcomes[0].name === 'Up');
-    
-    if(isBinary) {
+    const outcomes = market.outcomes || [];
+    if(outcomes.length === 2) {
         document.getElementById('tradingChoices').innerHTML = `
-            <button class="choice-btn choice-btn-yes selected" onclick="selectOutcome('${market.outcomes[0].name}', this)">
-                ${market.outcomes[0].name} <span>${market.outcomes[0].prob}¢</span>
+            <button class="choice-btn choice-btn-yes selected" onclick="selectOutcome('${outcomes[0].name}', this)">
+                ${outcomes[0].name} <span>${outcomes[0].probability}¢</span>
             </button>
-            <button class="choice-btn choice-btn-no" onclick="selectOutcome('${market.outcomes[1].name}', this)">
-                ${market.outcomes[1].name} <span>${market.outcomes[1].prob}¢</span>
+            <button class="choice-btn choice-btn-no" onclick="selectOutcome('${outcomes[1].name}', this)">
+                ${outcomes[1].name} <span>${outcomes[1].probability}¢</span>
             </button>
         `;
-        state.selectedOutcome = market.outcomes[0];
+        state.selectedOutcome = outcomes[0];
     } else {
         document.getElementById('tradingChoices').innerHTML = `
             <select style="width:100%; padding: 12px; background:var(--bg-main); color:white; border:1px solid var(--border-color); border-radius:8px;" onchange="selectOutcome(this.value)">
-                ${market.outcomes.map(o => `<option value="${o.name}">${o.name} - ${o.prob}¢</option>`).join('')}
+                ${outcomes.map(o => `<option value="${o.name}">${o.name} - ${o.probability}¢</option>`).join('')}
             </select>
         `;
-        state.selectedOutcome = market.outcomes[0];
+        state.selectedOutcome = outcomes[0];
     }
     updateTradePreview();
 }
 
-// Trading Logic
 function setupTrade(outcomeName) {
     const btn = document.querySelector(`.choice-btn:contains('${outcomeName}')`);
     if(btn) selectOutcome(outcomeName, btn);
@@ -436,9 +395,11 @@ function updateTradePreview() {
     const amount = parseFloat(document.getElementById('tradeAmount').value) || 0;
     state.tradeAmount = amount;
     
-    const prob = state.selectedOutcome.prob / 100;
+    if (!state.selectedOutcome) return;
+    
+    const prob = state.selectedOutcome.probability / 100;
     const shares = prob > 0 ? (amount / prob).toFixed(2) : 0;
-    const potential = (shares * 1).toFixed(2); // 1 PLC per winning share
+    const potential = (shares * 1).toFixed(2);
     
     document.getElementById('previewShares').innerText = shares;
     document.getElementById('previewProfit').innerText = `+${potential} PLC`;
@@ -446,156 +407,219 @@ function updateTradePreview() {
     const btn = document.getElementById('tradeButton');
     if(amount > 0) {
         btn.classList.add('active-yes');
-        btn.innerText = `Enfourner ${state.selectedOutcome.name}`;
+        btn.innerText = `Négocier ${state.selectedOutcome.name}`;
     } else {
         btn.classList.remove('active-yes', 'active-no');
         btn.innerText = 'Négocier';
     }
 }
 
-function executeTrade() {
+async function executeTrade() {
     if(!state.isLoggedIn) {
-        openModal('loginModal');
+        showToast("Vous devez être connecté", "error");
         return;
     }
     
     if(state.tradeAmount <= 0) return;
     
     if(state.user.balance < state.tradeAmount) {
-        showToast('Fonds insuffisants ! Pain Brûlé en vue...', 'error');
+        showToast('Fonds insuffisants !', 'error');
         return;
     }
     
-    // Execute mock trade
-    state.user.balance -= state.tradeAmount;
-    state.user.trades++;
+    const btn = document.getElementById('tradeButton');
+    btn.disabled = true;
+    btn.innerText = "Transaction...";
     
-    const prob = state.selectedOutcome.prob / 100;
+    const prob = state.selectedOutcome.probability / 100;
     const shares = state.tradeAmount / prob;
-    
-    state.user.positions.push({
-        marketId: state.currentMarket.id,
-        marketTitle: state.currentMarket.title,
-        outcome: state.selectedOutcome.name,
+
+    // Supabase insertions
+    const { error: posError } = await supabase.from('positions').insert({
+        user_id: state.user.id,
+        market_id: state.currentMarket.id,
+        outcome_id: state.selectedOutcome.id,
         shares: shares,
-        invested: state.tradeAmount,
-        date: new Date().toISOString()
+        invested_amount: state.tradeAmount
     });
     
-    localStorage.setItem('polyUser', JSON.stringify(state.user));
-    updateAuthUI();
+    if (posError) {
+        btn.disabled = false;
+        btn.innerText = "Négocier";
+        return showToast("Erreur lors de la transaction", "error");
+    }
     
-    showToast(`Vous avez enfourné ${state.tradeAmount} PLC sur ${state.selectedOutcome.name}`, 'success');
+    // Update balance
+    await supabase.from('profiles').update({ balance: state.user.balance - state.tradeAmount }).eq('id', state.user.id);
+    
+    await fetchUserProfile(state.session.user.id);
+    
+    btn.disabled = false;
+    showToast(`Vous avez misé ${state.tradeAmount} PLC sur ${state.selectedOutcome.name}`, 'success');
     document.getElementById('tradeAmount').value = 0;
     updateTradePreview();
 }
 
-function fastTrade(marketId, outcome, type) {
-    openMarketDetail(marketId);
-}
+// --- CREATE MARKET ---
 
-// Chart Mock
-function drawMockChart() {
-    const canvas = document.getElementById('marketChart');
-    if(!canvas) return;
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0,0, canvas.width, canvas.height);
+async function handleCreateMarket(e) {
+    e.preventDefault();
+    if(!state.isLoggedIn) return showToast("Connectez-vous", "error");
     
-    // Draw simple line chart
-    ctx.beginPath();
-    ctx.moveTo(0, canvas.height/2);
-    for(let i=0; i<canvas.width; i+=10) {
-        ctx.lineTo(i, canvas.height/2 + (Math.random()-0.5)*50);
+    const title = document.getElementById('cmQuestion').value;
+    const category = document.getElementById('cmCategory').value;
+    const endDate = document.getElementById('cmEndDate').value;
+    const liquidity = parseFloat(document.getElementById('cmLiquidity').value);
+    const desc = document.getElementById('cmDescription').value;
+    const iconUrl = document.getElementById('cmIcon').value;
+    
+    if(state.user.balance < liquidity) {
+        showToast("Fonds insuffisants pour apporter la liquidité.", "error");
+        return;
     }
-    ctx.strokeStyle = '#2B6FED';
-    ctx.lineWidth = 2;
-    ctx.stroke();
     
-    // fill gradient
-    ctx.lineTo(canvas.width, canvas.height);
-    ctx.lineTo(0, canvas.height);
-    const grad = ctx.createLinearGradient(0,0,0,canvas.height);
-    grad.addColorStop(0, 'rgba(43, 111, 237, 0.2)');
-    grad.addColorStop(1, 'rgba(43, 111, 237, 0)');
-    ctx.fillStyle = grad;
-    ctx.fill();
+    const btn = document.getElementById('btnCreateMarket');
+    btn.disabled = true;
+    btn.innerText = "Création...";
+    
+    // Insert Market
+    const { data: marketData, error: mError } = await supabase.from('markets').insert({
+        creator_id: state.user.id,
+        title,
+        category,
+        description: desc,
+        icon_url: iconUrl,
+        end_date: endDate,
+        liquidity,
+        source: 'User Creation'
+    }).select().single();
+    
+    if (mError) {
+        btn.disabled = false;
+        return showToast("Erreur de création", "error");
+    }
+    
+    // Insert Outcomes (Oui / Non par défaut pour simplifier)
+    await supabase.from('outcomes').insert([
+        { market_id: marketData.id, name: 'Oui', probability: 50, current_price: 0.5 },
+        { market_id: marketData.id, name: 'Non', probability: 50, current_price: 0.5 }
+    ]);
+    
+    // Deduct liquidity
+    await supabase.from('profiles').update({ balance: state.user.balance - liquidity }).eq('id', state.user.id);
+    
+    await fetchUserProfile(state.session.user.id);
+    await loadMarkets();
+    
+    btn.disabled = false;
+    btn.innerText = "Ouvrir le Marché";
+    closeModal('createMarketModal');
+    showToast("Votre Marché est publié !", "success");
 }
 
-// Leaderboard
-function renderLeaderboard() {
-    const podium = document.getElementById('leaderboardPodium');
-    const table = document.getElementById('leaderboardTable');
-    
-    table.innerHTML = `
-        <div class="lb-row lb-header">
-            <div class="lb-rank">#</div>
-            <div class="lb-user">Boulanger</div>
-            <div class="lb-score">Fournil (PLC)</div>
-            <div class="lb-trend">Tendance</div>
-        </div>
-        ${MOCK_LEADERBOARD.map((u, i) => `
-            <div class="lb-row">
-                <div class="lb-rank">${i+1}</div>
-                <div class="lb-user">
-                    <div class="lb-avatar">${u.name[0]}</div>
-                    ${u.name}
-                </div>
-                <div class="lb-score">${u.score.toLocaleString()} PLC</div>
-                <div class="lb-trend text-green">${u.trend}</div>
-            </div>
-        `).join('')}
-    `;
-    
-    document.getElementById('hofGrid').innerHTML = `
-        <div class="hof-card">
-            <div class="hof-title">Record Absolu</div>
-            <div class="hof-value">250 000 PLC</div>
-            <div class="hof-user">Marc</div>
-        </div>
-        <div class="hof-card">
-            <div class="hof-title">Plus long streak</div>
-            <div class="hof-value">24 Victoires</div>
-            <div class="hof-user">BaguettePro</div>
-        </div>
-        <div class="hof-card">
-            <div class="hof-title">Plus gros comeback</div>
-            <div class="hof-value">0 → 14k PLC</div>
-            <div class="hof-user">Julie</div>
-        </div>
-    `;
+// --- PROFILE EDIT ---
+
+function openEditProfile() {
+    document.getElementById('editPseudo').value = state.user.username;
+    document.getElementById('editAvatar').value = state.user.avatar_url || '';
+    openModal('editProfileModal');
 }
 
-// Portfolio
-function renderPortfolio() {
+async function handleEditProfile(e) {
+    e.preventDefault();
+    const newName = document.getElementById('editPseudo').value;
+    const newAvatar = document.getElementById('editAvatar').value;
+    
+    const { error } = await supabase.from('profiles').update({
+        username: newName,
+        avatar_url: newAvatar
+    }).eq('id', state.user.id);
+    
+    if (error) {
+        showToast("Erreur lors de la modification", "error");
+    } else {
+        showToast("Profil mis à jour", "success");
+        closeModal('editProfileModal');
+        await fetchUserProfile(state.session.user.id);
+        renderProfile(); // refresh page
+    }
+}
+
+// --- SEARCH ---
+
+function handleSearch() {
+    const q = document.getElementById('searchInput').value.toLowerCase();
+    const dropdown = document.getElementById('searchResults');
+    
+    if (q.length < 2) {
+        dropdown.style.display = 'none';
+        return;
+    }
+    
+    // Search markets locally
+    const mResults = state.markets.filter(m => m.title.toLowerCase().includes(q) || m.category.toLowerCase().includes(q));
+    
+    // For users, we should ideally fetch from Supabase, but let's do a quick query
+    supabase.from('profiles').select('id, username, avatar_url').ilike('username', `%${q}%`).limit(3).then(({data: uResults}) => {
+        let html = '';
+        if (mResults.length > 0) {
+            html += '<div class="sr-cat">Marchés</div>';
+            mResults.slice(0, 3).forEach(m => {
+                html += `<div class="sr-item" onclick="openMarketDetail('${m.id}'); document.getElementById('searchResults').style.display='none';">${m.title}</div>`;
+            });
+        }
+        if (uResults && uResults.length > 0) {
+            html += '<div class="sr-cat">Boulangers</div>';
+            uResults.forEach(u => {
+                html += `<div class="sr-item" style="display:flex; align-items:center; gap:8px;">
+                    <img src="${u.avatar_url || 'https://picsum.photos/30'}" style="width:24px; height:24px; border-radius:50%"> ${u.username}
+                </div>`;
+            });
+        }
+        
+        if (html === '') html = '<div class="sr-item text-muted">Aucun résultat</div>';
+        
+        dropdown.innerHTML = html;
+        dropdown.style.display = 'block';
+    });
+}
+
+// --- RENDER PORTFOLIO ---
+async function renderPortfolio() {
     if(!state.user) return;
     
-    const invested = state.user.positions.reduce((sum, p) => sum + p.invested, 0);
+    const { data: positions } = await supabase
+        .from('positions')
+        .select('*, outcomes(name), markets(title)')
+        .eq('user_id', state.user.id);
+        
+    const posList = positions || [];
+    const invested = posList.reduce((sum, p) => sum + p.invested_amount, 0);
     const total = state.user.balance + invested;
     
     document.getElementById('portBalance').innerText = formatPC(state.user.balance) + ' PLC';
     document.getElementById('portPositions').innerText = formatPC(invested) + ' PLC';
     document.getElementById('portTotal').innerText = formatPC(total) + ' PLC';
-    document.getElementById('portTrades').innerText = state.user.trades;
     
     const content = document.getElementById('portfolioContent');
-    if(state.user.positions.length === 0) {
+    if(posList.length === 0) {
         content.innerHTML = `
             <div class="empty-state">
                 <i data-lucide="cookie" style="width: 48px; height: 48px; opacity: 0.5; margin-bottom: 16px;"></i>
-                <p>Votre fournil est vide ! Allez enfourner sur un pétrin.</p>
-                <button class="btn-primary" onclick="navigateTo('home')">Explorer les pétrins</button>
+                <p>Votre portefeuille est vide !</p>
+                <button class="btn-primary" onclick="navigateTo('home')">Explorer les marchés</button>
             </div>
         `;
         setTimeout(() => lucide.createIcons(), 50);
         return;
     }
     
-    content.innerHTML = state.user.positions.map(p => `
+    content.innerHTML = posList.map(p => `
         <div class="position-card">
             <div class="pos-market">
                 <div>
-                    <div class="pos-title">${p.marketTitle}</div>
-                    <span class="pos-outcome ${p.outcome==='Oui'||p.outcome==='Up'?'yes':'no'}">${p.outcome}</span>
+                    <div class="pos-title">${p.markets.title}</div>
+                    <span class="pos-outcome">${p.outcomes.name}</span>
                 </div>
             </div>
             <div class="pos-stats">
@@ -605,153 +629,124 @@ function renderPortfolio() {
                 </div>
                 <div class="pos-stat-col">
                     <span class="pos-stat-label">Investi</span>
-                    <span class="pos-stat-val">${p.invested.toFixed(2)} PLC</span>
+                    <span class="pos-stat-val">${p.invested_amount.toFixed(2)} PLC</span>
                 </div>
-                <div class="pos-stat-col">
-                    <span class="pos-stat-label">Valeur (est.)</span>
-                    <span class="pos-stat-val text-green">${(p.invested * 1.05).toFixed(2)} PLC</span>
-                </div>
-                <button class="btn-secondary" onclick="showToast('Défournement réussi', 'success')">Défourner</button>
             </div>
         </div>
     `).join('');
-    setTimeout(() => lucide.createIcons(), 50);
 }
 
-// Profile
+// --- RENDER LEADERBOARD ---
+async function renderLeaderboard() {
+    const { data: profiles } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('balance', { ascending: false })
+        .limit(10);
+        
+    const table = document.getElementById('leaderboardTable');
+    if (!profiles) return;
+    
+    table.innerHTML = `
+        <div class="lb-row lb-header">
+            <div class="lb-rank">#</div>
+            <div class="lb-user">Boulanger</div>
+            <div class="lb-score">Portefeuille (PLC)</div>
+        </div>
+        ${profiles.map((u, i) => `
+            <div class="lb-row">
+                <div class="lb-rank">${i+1}</div>
+                <div class="lb-user">
+                    ${u.avatar_url ? `<img src="${u.avatar_url}" class="lb-avatar" style="object-fit:cover">` : `<div class="lb-avatar">${u.username[0]}</div>`}
+                    ${u.username}
+                </div>
+                <div class="lb-score">${formatPC(u.balance)} PLC</div>
+            </div>
+        `).join('')}
+    `;
+}
+
+// --- PROFILE ---
 function renderProfile() {
     if(!state.user) return;
     const content = document.getElementById('profileContent');
     
     content.innerHTML = `
         <div class="profile-header">
-            ${state.user.picture 
-                ? `<img src="${state.user.picture}" class="profile-avatar-large" style="object-fit: cover;">`
+            ${state.user.avatar_url 
+                ? `<img src="${state.user.avatar_url}" class="profile-avatar-large" style="object-fit: cover;">`
                 : `<div class="profile-avatar-large">${state.user.username[0].toUpperCase()}</div>`
             }
             <div class="profile-info">
-                <h1>${state.user.username}</h1>
-                <div class="profile-date">Dans la boulangerie depuis ${new Date(state.user.joined).toLocaleDateString()}</div>
+                <h1>${state.user.username} <button style="background:none; border:none; cursor:pointer; color:var(--text-muted)" onclick="openEditProfile()"><i data-lucide="edit-2" class="icon-sm"></i></button></h1>
+                <div class="profile-date">Inscrit le ${new Date(state.user.created_at).toLocaleDateString()}</div>
             </div>
         </div>
         <div class="profile-stats-grid">
             <div class="portfolio-card">
-                <span class="portfolio-label">Fournil Actuel</span>
+                <span class="portfolio-label">Solde Actuel</span>
                 <span class="portfolio-value">${formatPC(state.user.balance)} PLC</span>
             </div>
-            <div class="portfolio-card">
-                <span class="portfolio-label">Trades Totaux</span>
-                <span class="portfolio-value">${state.user.trades}</span>
-            </div>
-            <div class="portfolio-card">
-                <span class="portfolio-label">Ratio Victoire</span>
-                <span class="portfolio-value text-green">0%</span>
-            </div>
-            <div class="portfolio-card">
-                <span class="portfolio-label">Marchés Créés</span>
-                <span class="portfolio-value">0</span>
-            </div>
-        </div>
-        <div class="badges-section">
-            <h2>🏆 Badges & Achievements</h2>
-            <div class="badges-grid">
-                ${BADGES.map(b => `
-                    <div class="badge-card ${state.user.trades > 0 && b.id === 'croissant' ? 'unlocked' : ''}">
-                        <i data-lucide="${b.icon}" class="badge-icon"></i>
-                        <div class="badge-name">${b.name}</div>
-                        <div class="text-muted" style="font-size:0.75rem; margin-top:4px;">${b.desc}</div>
-                    </div>
-                `).join('')}
-            </div>
-        </div>
-        <div style="margin-top: 32px; text-align:center;">
-            <button class="btn-secondary btn-danger" onclick="resetAccount()"><i data-lucide="rotate-ccw"></i> Nouveau Départ (Remise à 100 PLC)</button>
         </div>
     `;
     setTimeout(() => lucide.createIcons(), 50);
 }
 
-function resetAccount() {
-    if(confirm("Êtes-vous sûr ? Vous perdrez tout votre historique et vos badges, et retomberez à 100 PLC. C'est irréversible !")) {
-        state.user.balance = 100;
-        state.user.positions = [];
-        state.user.trades = 0;
-        localStorage.setItem('polyUser', JSON.stringify(state.user));
-        showToast("Nouveau départ effectué. 100 PLC rechargés.", "success");
-        renderProfile();
-        updateWalletBalances();
+// --- UTILS & MOCKS ---
+
+async function loadRecentTransactions() {
+    // Just a placeholder
+    const list = document.getElementById('transactionsList');
+    if(list) list.innerHTML = '<div class="text-muted">Aucune transaction récente</div>';
+}
+
+function initTicker() {
+    const tickerContent = document.getElementById('tickerContent');
+    if (tickerContent) {
+        tickerContent.innerHTML = `<span class="ticker-item">Bienvenue sur PolyBaguette, la version française de Polymarket !</span>`;
     }
 }
 
-// Create Market
-function handleCreateMarket(e) {
-    e.preventDefault();
-    if(!state.isLoggedIn) return;
-    
-    const liq = parseFloat(document.getElementById('cmLiquidity').value);
-    if(state.user.balance < liq) {
-        showToast("Fonds insuffisants pour apporter la liquidité.", "error");
-        return;
-    }
-    
-    state.user.balance -= liq;
-    localStorage.setItem('polyUser', JSON.stringify(state.user));
-    updateWalletBalances();
-    closeModal('createMarketModal');
-    showToast("Votre Pétrin a été mis au four ! Il sera validé sous peu.", "success");
+function drawMockChart() {
+    const canvas = document.getElementById('marketChart');
+    if(!canvas) return;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0,0, canvas.width, canvas.height);
+    ctx.beginPath();
+    ctx.moveTo(0, canvas.height/2);
+    for(let i=0; i<canvas.width; i+=10) { ctx.lineTo(i, canvas.height/2 + (Math.random()-0.5)*50); }
+    ctx.strokeStyle = '#2B6FED';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.lineTo(canvas.width, canvas.height);
+    ctx.lineTo(0, canvas.height);
+    const grad = ctx.createLinearGradient(0,0,0,canvas.height);
+    grad.addColorStop(0, 'rgba(43, 111, 237, 0.2)');
+    grad.addColorStop(1, 'rgba(43, 111, 237, 0)');
+    ctx.fillStyle = grad;
+    ctx.fill();
 }
 
-// Sidebars
-function renderNews() {
-    const list = document.getElementById('newsList');
-    if (list) {
-        list.innerHTML = MOCK_MARKETS[0].news.map((n,i) => `
-            <div class="news-item">
-                <div class="news-num">${i+1}</div>
-                <div class="news-title">${n.text}</div>
-                <div class="news-prob">
-                    ${n.prob}%
-                    <span class="news-trend text-green"><i data-lucide="arrow-up-right" class="icon-sm"></i></span>
-                </div>
-            </div>
-        `).join('');
-    }
-}
-function renderTopics() {
-    const list = document.getElementById('topicsList');
-    if (list) {
-        list.innerHTML = ['Evo', 'SpaceX', 'Rocha', 'Spurs', 'NBA'].map((t,i) => `
-            <div class="topic-item">
-                <div class="topic-name">
-                    <span class="news-num">${i+1}</span>
-                    ${t}
-                </div>
-                <span class="text-muted">$${Math.floor(Math.random()*10)}M ></span>
-            </div>
-        `).join('');
-    }
-}
-
-// UI Helpers
 function showToast(msg, type='info') {
     const container = document.getElementById('toastContainer');
     const toast = document.createElement('div');
     toast.className = 'toast';
-    toast.innerHTML = `
-        <div style="width:8px; height:8px; border-radius:50%; background: ${type==='error'?'var(--accent-red)':'var(--accent-green)'}"></div>
-        <div>${msg}</div>
-    `;
+    toast.innerHTML = `<div style="width:8px; height:8px; border-radius:50%; background: ${type==='error'?'var(--accent-red)':'var(--accent-green)'}"></div><div>${msg}</div>`;
     container.appendChild(toast);
-    setTimeout(() => {
-        toast.style.animation = 'slideOut 0.3s forwards';
-        setTimeout(() => toast.remove(), 300);
-    }, 3000);
+    setTimeout(() => { toast.style.animation = 'slideOut 0.3s forwards'; setTimeout(() => toast.remove(), 300); }, 3000);
 }
 
-// Expose minimal jQuery-like helper for simplicity if needed
-HTMLElement.prototype.contains = function(text) {
-    return this.innerText.includes(text);
-};
+HTMLElement.prototype.contains = function(text) { return this.innerText.includes(text); };
 
-// Initial setup call
-navigateTo('home');
+function getFallbackMarkets() {
+    return [
+        {
+            id: 'demo1', title: 'Dissolution de l\'Assemblée en 2026 ?', category: 'Politique', description: 'Le président va-t-il dissoudre l\'assemblée ?', end_date: '2026-12-31', liquidity: 100, volume: 5400,
+            outcomes: [{ id:'o1', name: 'Oui', probability: 35 }, { id:'o2', name: 'Non', probability: 65 }]
+        },
+        {
+            id: 'demo2', title: 'Vainqueur de la Ligue des Champions 2026', category: 'Sports', description: 'Qui va gagner ?', end_date: '2026-06-01', liquidity: 500, volume: 12000,
+            outcomes: [{ id:'o3', name: 'Real Madrid', probability: 45 }, { id:'o4', name: 'PSG', probability: 20 }]
+        }
+    ];
+}

@@ -9,10 +9,10 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <script src="https://unpkg.com/lucide@latest"></script>
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
-    <!-- TICKER - Fil de la Mie -->
+    <!-- TICKER -->
     <div class="ticker-bar" id="tickerBar">
         <div class="ticker-content" id="tickerContent"></div>
     </div>
@@ -28,41 +28,39 @@
         <div class="header-center">
             <div class="search-bar">
                 <i data-lucide="search" class="search-icon"></i>
-                <input type="text" id="searchInput" placeholder="Rechercher des pétrins..." autocomplete="off">
+                <input type="text" id="searchInput" placeholder="Rechercher des marchés ou des boulangers..." autocomplete="off" oninput="handleSearch()">
             </div>
+            <!-- Search Results Dropdown -->
+            <div id="searchResults" class="search-results-dropdown" style="display:none;"></div>
         </div>
         <div class="header-right">
             <nav class="header-nav">
                 <a class="nav-link active" onclick="navigateTo('home')" id="navHome">
-                    <i data-lucide="layout-grid"></i>
-                    Pétrins
+                    <i data-lucide="layout-grid"></i> Marchés
                 </a>
                 <a class="nav-link" onclick="navigateTo('portfolio')" id="navPortfolio">
-                    <i data-lucide="briefcase"></i>
-                    Fournil
+                    <i data-lucide="briefcase"></i> Portefeuille
                 </a>
                 <a class="nav-link" onclick="navigateTo('leaderboard')" id="navLeaderboard">
-                    <i data-lucide="award"></i>
-                    Classement
+                    <i data-lucide="award"></i> Classement
                 </a>
             </nav>
             <!-- Auth buttons (logged out) -->
             <div class="auth-buttons" id="authButtons">
-                <button class="btn-secondary" onclick="openModal('loginModal')">Se connecter</button>
-                <button class="btn-primary" onclick="openModal('registerModal')">S'inscrire</button>
+                <button class="btn-primary" onclick="loginWithGoogle()"><i data-lucide="log-in" style="margin-right: 8px;"></i>Se connecter</button>
             </div>
             <!-- Wallet (logged in) -->
             <div class="wallet-display" id="walletDisplay" style="display:none">
                 <div class="wallet-btn" onclick="toggleWalletDropdown()">
                     <img src="polyCoin.png" alt="PLC" class="wallet-coin-icon">
-                    <span class="wallet-balance" id="walletBalance">100.00</span>
+                    <span class="wallet-balance" id="walletBalance">0.00</span>
                     <span class="wallet-label">PLC</span>
                 </div>
                 <div class="wallet-dropdown" id="walletDropdown">
                     <div class="wallet-dropdown-top">
                         <div class="wallet-dropdown-title">Total Balance <i data-lucide="eye-off" class="icon-sm"></i></div>
-                        <div class="wallet-dropdown-balance" id="walletDropdownBalance">100.00 PLC</div>
-                        <div class="wallet-dropdown-euro" id="walletDropdownEuro">$ 92.00 USD</div>
+                        <div class="wallet-dropdown-balance" id="walletDropdownBalance">0.00 PLC</div>
+                        <div class="wallet-dropdown-euro" id="walletDropdownEuro">$ 0.00 USD</div>
                         <div class="wallet-dropdown-buttons">
                             <button class="wallet-btn-action" onclick="openModal('sendModal')">Send</button>
                             <button class="wallet-btn-action" onclick="navigateTo('portfolio')">Portfolio</button>
@@ -81,8 +79,8 @@
                             <div class="wallet-item-sub">PolyCoin</div>
                         </div>
                         <div class="wallet-item-amounts">
-                            <div class="wallet-item-balance" id="walletItemBalance">100.00</div>
-                            <div class="wallet-item-eur" id="walletItemEur">$ 92.00</div>
+                            <div class="wallet-item-balance" id="walletItemBalance">0.00</div>
+                            <div class="wallet-item-eur" id="walletItemEur">$ 0.00</div>
                         </div>
                     </div>
                     <div class="wallet-actions-bottom">
@@ -91,9 +89,7 @@
                     </div>
                 </div>
             </div>
-            <div class="user-avatar" id="userAvatar" style="display:none" onclick="navigateTo('profile')">
-                <span id="userAvatarLetter">B</span>
-            </div>
+            <div class="user-avatar" id="userAvatar" style="display:none" onclick="navigateTo('profile')"></div>
         </div>
     </header>
 
@@ -101,19 +97,17 @@
     <div class="category-bar" id="categoryBar">
         <div class="category-scroll">
             <button class="cat-btn active" onclick="filterCategory('all', this)"><i data-lucide="flame"></i> Tendances</button>
-            <button class="cat-btn" onclick="filterCategory('news', this)"><i data-lucide="newspaper"></i> Dernières nouvelles</button>
-            <button class="cat-btn" onclick="filterCategory('new', this)"><i data-lucide="sparkles"></i> Nouveau</button>
-            <button class="cat-btn" onclick="filterCategory('politique', this)"><i data-lucide="landmark"></i> Politique</button>
-            <button class="cat-btn" onclick="filterCategory('sport', this)"><i data-lucide="trophy"></i> Sports</button>
-            <button class="cat-btn" onclick="filterCategory('crypto', this)"><i data-lucide="bitcoin"></i> Crypto</button>
-            <button class="cat-btn" onclick="filterCategory('esport', this)"><i data-lucide="gamepad-2"></i> Esports</button>
-            <button class="cat-btn" onclick="filterCategory('finance', this)"><i data-lucide="line-chart"></i> Finance</button>
-            <button class="cat-btn" onclick="filterCategory('geo', this)"><i data-lucide="globe"></i> Géopolitique</button>
-            <button class="cat-btn" onclick="filterCategory('tech', this)"><i data-lucide="laptop"></i> Tech</button>
-            <button class="cat-btn" onclick="filterCategory('culture', this)"><i data-lucide="masks-theater"></i> Culture</button>
-            <button class="cat-btn" onclick="filterCategory('economie', this)"><i data-lucide="bar-chart-3"></i> Économie</button>
-            <button class="cat-btn" onclick="filterCategory('meteo', this)"><i data-lucide="cloud-sun"></i> Météo</button>
-            <button class="cat-btn" onclick="filterCategory('people', this)"><i data-lucide="star"></i> People</button>
+            <button class="cat-btn" onclick="filterCategory('Politique', this)"><i data-lucide="landmark"></i> Politique</button>
+            <button class="cat-btn" onclick="filterCategory('Sports', this)"><i data-lucide="trophy"></i> Sports</button>
+            <button class="cat-btn" onclick="filterCategory('Crypto', this)"><i data-lucide="bitcoin"></i> Crypto</button>
+            <button class="cat-btn" onclick="filterCategory('Esports', this)"><i data-lucide="gamepad-2"></i> Esports</button>
+            <button class="cat-btn" onclick="filterCategory('Finance', this)"><i data-lucide="line-chart"></i> Finance</button>
+            <button class="cat-btn" onclick="filterCategory('Géopolitique', this)"><i data-lucide="globe"></i> Géopolitique</button>
+            <button class="cat-btn" onclick="filterCategory('Tech', this)"><i data-lucide="laptop"></i> Tech</button>
+            <button class="cat-btn" onclick="filterCategory('Culture', this)"><i data-lucide="masks-theater"></i> Culture</button>
+            <button class="cat-btn" onclick="filterCategory('Économie', this)"><i data-lucide="bar-chart-3"></i> Économie</button>
+            <button class="cat-btn" onclick="filterCategory('Météo', this)"><i data-lucide="cloud-sun"></i> Météo</button>
+            <button class="cat-btn" onclick="filterCategory('People', this)"><i data-lucide="star"></i> People</button>
         </div>
     </div>
 
@@ -122,40 +116,28 @@
 
         <!-- HOME PAGE -->
         <div class="page active" id="homePage">
-            <!-- Featured Market -->
             <div class="home-layout">
                 <div class="home-left">
                     <div class="featured-market" id="featuredMarket"></div>
                     <!-- All Markets Grid -->
                     <div class="markets-section">
                         <div class="section-header">
-                            <h2>Tous les pétrins</h2>
+                            <h2>Tous les marchés</h2>
                             <div class="section-controls">
-                                <button class="filter-btn active" onclick="setMarketView('grid', this)">
-                                    <i data-lucide="grid-2x2"></i>
-                                </button>
-                                <button class="filter-btn" onclick="setMarketView('list', this)">
-                                    <i data-lucide="list"></i>
-                                </button>
+                                <button class="filter-btn active" onclick="setMarketView('grid', this)"><i data-lucide="grid-2x2"></i></button>
+                                <button class="filter-btn" onclick="setMarketView('list', this)"><i data-lucide="list"></i></button>
                             </div>
                         </div>
+                        <div id="loadingMarkets" style="text-align:center; padding: 40px; color: var(--text-muted);"><i data-lucide="loader" class="spin"></i> Chargement des marchés...</div>
                         <div class="markets-grid" id="marketsGrid"></div>
                     </div>
                 </div>
                 <div class="home-right">
                     <div class="sidebar-section">
                         <div class="sidebar-header">
-                            <h3>Dernières nouvelles</h3>
-                            <span class="see-more" onclick="filterCategory('news')"><i data-lucide="chevron-right"></i></span>
+                            <h3>Dernières transactions</h3>
                         </div>
-                        <div class="news-list" id="newsList"></div>
-                    </div>
-                    <div class="sidebar-section">
-                        <div class="sidebar-header">
-                            <h3>Sujets populaires</h3>
-                            <span class="see-more"><i data-lucide="chevron-right"></i></span>
-                        </div>
-                        <div class="topics-list" id="topicsList"></div>
+                        <div class="news-list" id="transactionsList"></div>
                     </div>
                 </div>
             </div>
@@ -169,36 +151,19 @@
                     <div class="market-detail-header" id="marketDetailHeader"></div>
                     <div class="market-chart-container">
                         <canvas id="marketChart" width="800" height="300"></canvas>
-                        <div class="chart-timeframes">
-                            <button class="tf-btn" onclick="setTimeframe('1h')">1H</button>
-                            <button class="tf-btn" onclick="setTimeframe('6h')">6H</button>
-                            <button class="tf-btn" onclick="setTimeframe('1d')">1J</button>
-                            <button class="tf-btn active" onclick="setTimeframe('1w')">1S</button>
-                            <button class="tf-btn" onclick="setTimeframe('1m')">1M</button>
-                            <button class="tf-btn" onclick="setTimeframe('all')">TOUT</button>
-                        </div>
                     </div>
                     <div class="market-outcomes-list" id="marketOutcomesList"></div>
                     <div class="market-tabs">
                         <button class="tab-btn active" onclick="switchMarketTab('about', this)">À propos</button>
-                        <button class="tab-btn" onclick="switchMarketTab('activity', this)">Activité</button>
-                        <button class="tab-btn" onclick="switchMarketTab('comments', this)">Commentaires</button>
                     </div>
-                    <div class="market-tab-content" id="marketTabContent"></div>
+                    <div class="market-tab-content active" id="marketTabContent"></div>
                 </div>
                 <div class="market-detail-right">
                     <div class="trading-panel" id="tradingPanel">
                         <div class="trading-panel-header" id="tradingPanelHeader"></div>
                         <div class="trading-tabs">
-                            <button class="trade-tab active" onclick="switchTradeMode('buy', this)">Enfourner</button>
-                            <button class="trade-tab" onclick="switchTradeMode('sell', this)">Défourner</button>
-                        </div>
-                        <div class="trading-order-type">
-                            <span>Commande à Emporter</span>
-                            <div class="order-toggle">
-                                <button class="order-btn active" onclick="setOrderType('market', this)">Marché</button>
-                                <button class="order-btn" onclick="setOrderType('limit', this)">Sur Place</button>
-                            </div>
+                            <button class="trade-tab active" onclick="switchTradeMode('buy', this)">Enfourner (Acheter)</button>
+                            <button class="trade-tab" onclick="switchTradeMode('sell', this)">Défourner (Vendre)</button>
                         </div>
                         <div class="trading-choices" id="tradingChoices"></div>
                         <div class="trading-amount">
@@ -219,7 +184,6 @@
                             <div class="preview-row"><span>Gain potentiel</span><span id="previewProfit" class="text-green">0.00 PLC</span></div>
                         </div>
                         <button class="btn-trade" id="tradeButton" onclick="executeTrade()">Négocier</button>
-                        <p class="trade-disclaimer">En négociant, vous acceptez les <a href="#">Conditions d'utilisation</a>.</p>
                     </div>
                 </div>
             </div>
@@ -229,11 +193,11 @@
         <div class="page" id="portfolioPage">
             <div class="portfolio-layout">
                 <div class="portfolio-header-section">
-                    <h1>Mon Fournil <i data-lucide="chef-hat"></i></h1>
+                    <h1>Mon Portefeuille <i data-lucide="briefcase"></i></h1>
                     <div class="portfolio-summary">
                         <div class="portfolio-card">
                             <span class="portfolio-label">Solde disponible</span>
-                            <span class="portfolio-value" id="portBalance">100.00 PLC</span>
+                            <span class="portfolio-value" id="portBalance">0.00 PLC</span>
                         </div>
                         <div class="portfolio-card">
                             <span class="portfolio-label">Valeur positions</span>
@@ -241,7 +205,7 @@
                         </div>
                         <div class="portfolio-card">
                             <span class="portfolio-label">Valeur totale</span>
-                            <span class="portfolio-value highlight" id="portTotal">100.00 PLC</span>
+                            <span class="portfolio-value highlight" id="portTotal">0.00 PLC</span>
                         </div>
                         <div class="portfolio-card">
                             <span class="portfolio-label">Trades totaux</span>
@@ -251,14 +215,12 @@
                 </div>
                 <div class="portfolio-tabs">
                     <button class="tab-btn active" onclick="switchPortfolioTab('positions', this)">Positions ouvertes</button>
-                    <button class="tab-btn" onclick="switchPortfolioTab('history', this)">Historique</button>
-                    <button class="tab-btn" onclick="switchPortfolioTab('resolved', this)">Résolus</button>
                 </div>
                 <div class="portfolio-content" id="portfolioContent">
                     <div class="empty-state">
                         <i data-lucide="cookie" style="width: 48px; height: 48px; opacity: 0.5; margin-bottom: 16px;"></i>
-                        <p>Votre fournil est vide ! Allez enfourner sur un pétrin.</p>
-                        <button class="btn-primary" onclick="navigateTo('home')">Explorer les pétrins</button>
+                        <p>Votre portefeuille est vide ! Allez trader sur un marché.</p>
+                        <button class="btn-primary" onclick="navigateTo('home')">Explorer les marchés</button>
                     </div>
                 </div>
             </div>
@@ -267,22 +229,11 @@
         <!-- LEADERBOARD PAGE -->
         <div class="page" id="leaderboardPage">
             <div class="leaderboard-layout">
-                <h1><i data-lucide="crown"></i> Boulangerie Royale</h1>
+                <h1><i data-lucide="crown"></i> Classement</h1>
                 <div class="leaderboard-tabs">
-                    <button class="tab-btn active" onclick="switchLeaderTab('rich', this)"><i data-lucide="banknote"></i> Les Plus Riches</button>
-                    <button class="tab-btn" onclick="switchLeaderTab('week', this)"><i data-lucide="flame"></i> Top Semaine</button>
-                    <button class="tab-btn" onclick="switchLeaderTab('month', this)"><i data-lucide="trending-up"></i> Top Mois</button>
-                    <button class="tab-btn" onclick="switchLeaderTab('precision', this)"><i data-lucide="target"></i> Précision</button>
-                    <button class="tab-btn" onclick="switchLeaderTab('creators', this)"><i data-lucide="hammer"></i> Créateurs</button>
-                    <button class="tab-btn" onclick="switchLeaderTab('rookies', this)"><i data-lucide="sprout"></i> Rookies</button>
-                    <button class="tab-btn" onclick="switchLeaderTab('whales', this)"><i data-lucide="fish"></i> Baleines</button>
+                    <button class="tab-btn active"><i data-lucide="banknote"></i> Les Plus Riches</button>
                 </div>
-                <div class="leaderboard-podium" id="leaderboardPodium"></div>
                 <div class="leaderboard-table" id="leaderboardTable"></div>
-                <div class="hall-of-fame">
-                    <h2><i data-lucide="medal"></i> Hall of Fame</h2>
-                    <div class="hof-grid" id="hofGrid"></div>
-                </div>
             </div>
         </div>
 
@@ -299,11 +250,11 @@
             <div class="modal-header">
                 <i data-lucide="send" style="width: 48px; height: 48px; color: var(--accent-blue); margin-bottom: 16px;"></i>
                 <h2>Envoyer des PLC</h2>
-                <p>Transférez des PolyCoins à un autre boulanger</p>
+                <p>Transférez des PolyCoins à un autre utilisateur</p>
             </div>
             <form onsubmit="handleSendMoney(event)">
                 <div class="form-group">
-                    <label>Email ou Pseudo du destinataire</label>
+                    <label>Email du destinataire</label>
                     <input type="text" id="sendEmail" required placeholder="ami@email.fr">
                 </div>
                 <div class="form-group">
@@ -313,72 +264,30 @@
                         <input type="number" id="sendAmount" required min="0.01" step="0.01" placeholder="10.00">
                     </div>
                 </div>
-                <button type="submit" class="btn-primary btn-full">Envoyer les PLC</button>
+                <button type="submit" class="btn-primary btn-full" id="btnSend">Envoyer les PLC</button>
             </form>
         </div>
     </div>
 
-    <!-- LOGIN MODAL -->
-    <div class="modal-overlay" id="loginModal">
+    <!-- EDIT PROFILE MODAL -->
+    <div class="modal-overlay" id="editProfileModal">
         <div class="modal">
-            <button class="modal-close" onclick="closeModal('loginModal')">×</button>
+            <button class="modal-close" onclick="closeModal('editProfileModal')">×</button>
             <div class="modal-header">
-                <img src="logo poylymarket.png" alt="PolyBaguette" class="modal-logo" style="width:auto; max-width: 100px;">
-                <h2>Se connecter</h2>
-                <p>Bienvenue dans la boulangerie !</p>
+                <i data-lucide="user-pen" style="width: 48px; height: 48px; color: var(--text-primary); margin-bottom: 16px;"></i>
+                <h2>Modifier le Profil</h2>
             </div>
-            <form onsubmit="handleLogin(event)">
+            <form onsubmit="handleEditProfile(event)">
                 <div class="form-group">
-                    <label>Pseudo</label>
-                    <input type="text" id="loginUsername" required placeholder="Ton pseudo de boulanger">
+                    <label>Nouveau Pseudo</label>
+                    <input type="text" id="editPseudo" required>
                 </div>
                 <div class="form-group">
-                    <label>Mot de passe</label>
-                    <input type="password" id="loginPassword" required placeholder="••••••••">
+                    <label>Lien de la photo (URL)</label>
+                    <input type="url" id="editAvatar" placeholder="https://...">
                 </div>
-                <button type="submit" class="btn-primary btn-full">Entrer dans la boulangerie</button>
+                <button type="submit" class="btn-primary btn-full">Sauvegarder</button>
             </form>
-            <div style="margin: 20px 0; display: flex; align-items: center; text-align: center; color: var(--text-muted);">
-                <hr style="flex-grow: 1; border: none; border-top: 1px solid var(--border-color);">
-                <span style="padding: 0 10px; font-size: 0.85rem;">OU</span>
-                <hr style="flex-grow: 1; border: none; border-top: 1px solid var(--border-color);">
-            </div>
-            <div id="googleBtnLogin" style="display: flex; justify-content: center; margin-bottom: 16px;"></div>
-            <p class="modal-footer-text">Pas encore inscrit ? <a onclick="closeModal('loginModal');openModal('registerModal')">S'inscrire</a></p>
-        </div>
-    </div>
-
-    <!-- REGISTER MODAL -->
-    <div class="modal-overlay" id="registerModal">
-        <div class="modal">
-            <button class="modal-close" onclick="closeModal('registerModal')">×</button>
-            <div class="modal-header">
-                <img src="logo poylymarket.png" alt="PolyBaguette" class="modal-logo" style="width:auto; max-width: 100px;">
-                <h2>S'inscrire</h2>
-                <p>Reçois <strong>100 PLC</strong> gratuits à l'inscription !</p>
-            </div>
-            <form onsubmit="handleRegister(event)">
-                <div class="form-group">
-                    <label>Pseudo</label>
-                    <input type="text" id="registerUsername" required placeholder="Choisis ton pseudo" minlength="3">
-                </div>
-                <div class="form-group">
-                    <label>Email</label>
-                    <input type="email" id="registerEmail" required placeholder="ton@email.fr">
-                </div>
-                <div class="form-group">
-                    <label>Mot de passe</label>
-                    <input type="password" id="registerPassword" required placeholder="••••••••" minlength="6">
-                </div>
-                <button type="submit" class="btn-primary btn-full">Créer mon compte</button>
-            </form>
-            <div style="margin: 20px 0; display: flex; align-items: center; text-align: center; color: var(--text-muted);">
-                <hr style="flex-grow: 1; border: none; border-top: 1px solid var(--border-color);">
-                <span style="padding: 0 10px; font-size: 0.85rem;">OU</span>
-                <hr style="flex-grow: 1; border: none; border-top: 1px solid var(--border-color);">
-            </div>
-            <div id="googleBtnRegister" style="display: flex; justify-content: center; margin-bottom: 16px;"></div>
-            <p class="modal-footer-text">Déjà inscrit ? <a onclick="closeModal('registerModal');openModal('loginModal')">Se connecter</a></p>
         </div>
     </div>
 
@@ -388,7 +297,7 @@
             <button class="modal-close" onclick="closeModal('createMarketModal')">×</button>
             <div class="modal-header">
                 <i data-lucide="plus-circle" style="width: 48px; height: 48px; color: var(--text-primary); margin-bottom: 16px;"></i>
-                <h2>Ouvrir un Pétrin</h2>
+                <h2>Ouvrir un Marché</h2>
                 <p>Crée un nouveau marché prédictif</p>
             </div>
             <form onsubmit="handleCreateMarket(event)">
@@ -399,16 +308,16 @@
                 <div class="form-group">
                     <label>Catégorie</label>
                     <select id="cmCategory" required>
-                        <option value="politique">Politique</option>
-                        <option value="sport">Sports</option>
-                        <option value="crypto">Crypto</option>
-                        <option value="tech">Tech</option>
-                        <option value="culture">Culture</option>
-                        <option value="economie">Économie</option>
-                        <option value="finance">Finance</option>
-                        <option value="meteo">Météo</option>
-                        <option value="geo">Géopolitique</option>
-                        <option value="people">People</option>
+                        <option value="Politique">Politique</option>
+                        <option value="Sports">Sports</option>
+                        <option value="Crypto">Crypto</option>
+                        <option value="Tech">Tech</option>
+                        <option value="Culture">Culture</option>
+                        <option value="Économie">Économie</option>
+                        <option value="Finance">Finance</option>
+                        <option value="Météo">Météo</option>
+                        <option value="Géopolitique">Géopolitique</option>
+                        <option value="People">People</option>
                     </select>
                 </div>
                 <div class="form-row">
@@ -422,14 +331,14 @@
                     </div>
                 </div>
                 <div class="form-group">
-                    <label>Source de résolution</label>
-                    <input type="text" id="cmSource" placeholder="Ex: INSEE, LFP, Reuters...">
+                    <label>Lien de l'icône (URL)</label>
+                    <input type="url" id="cmIcon" placeholder="https://..." value="https://picsum.photos/100">
                 </div>
                 <div class="form-group">
                     <label>Description</label>
                     <textarea id="cmDescription" rows="3" placeholder="Détails du marché..."></textarea>
                 </div>
-                <button type="submit" class="btn-primary btn-full">Ouvrir le Pétrin</button>
+                <button type="submit" class="btn-primary btn-full" id="btnCreateMarket">Ouvrir le Marché</button>
             </form>
         </div>
     </div>
@@ -438,11 +347,10 @@
     <div class="toast-container" id="toastContainer"></div>
 
     <!-- FAB - Create Market -->
-    <button class="fab" id="fabCreate" onclick="openModal('createMarketModal')" style="display:none" title="Ouvrir un Pétrin">
+    <button class="fab" id="fabCreate" onclick="openModal('createMarketModal')" style="display:none" title="Ouvrir un Marché">
         <i data-lucide="plus"></i>
     </button>
 
-    <script src="data.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

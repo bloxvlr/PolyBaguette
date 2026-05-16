@@ -144,6 +144,35 @@ a:hover {
     outline: none;
 }
 
+.search-results-dropdown {
+    position: absolute;
+    top: 60px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    width: 100%;
+    max-width: 500px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    z-index: 2000;
+    overflow: hidden;
+}
+.sr-cat {
+    padding: 8px 16px;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    background: var(--bg-main);
+    text-transform: uppercase;
+    font-weight: 700;
+}
+.sr-item {
+    padding: 12px 16px;
+    cursor: pointer;
+    transition: background 0.2s;
+    border-bottom: 1px solid var(--border-color);
+}
+.sr-item:last-child { border-bottom: none; }
+.sr-item:hover { background: var(--bg-card-hover); }
+
 .header-nav {
     display: flex;
     gap: 24px;
