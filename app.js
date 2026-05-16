@@ -342,10 +342,24 @@ function renderMarkets(marketsData) {
 
 // --- MARKET DETAIL & TRADING ---
 
-function openMarketDetail(id) {
+async function openMarketDetail(id) {
     const market = state.markets.find(m => m.id === id);
     if(!market) return;
     state.currentMarket = market;
+    
+    // Reset trade mode to buy
+    state.tradeMode = 'buy';
+    document.querySelectorAll('.trade-tab').forEach((b, i) => {
+        if(i === 0) b.classList.add('active'); else b.classList.remove('active');
+    });
+    
+    // Fetch market positions for real chart and owned shares
+    let positions = [];
+    if (supabaseClient) {
+        const { data } = await supabaseClient.from('positions').select('*').eq('market_id', id).order('created_at', { ascending: true });
+        positions = data || [];
+    }
+    state.marketPositions = positions;
     
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.getElementById('marketPage').classList.add('active');
@@ -359,7 +373,7 @@ function openMarketDetail(id) {
                 <div>
                     <div class="md-title">${market.title}</div>
                     <div class="md-stats">
-                        <span><i data-lucide="award" class="icon-sm"></i> ${formatVol(market.volume || 0)} Vol.</span>
+                        <span id="marketVolumeUI"><i data-lucide="award" class="icon-sm"></i> ${formatVol(market.volume || 0)} Vol.</span>
                         <span><i data-lucide="calendar" class="icon-sm"></i> ${new Date(market.end_date).toLocaleDateString()}</span>
                     </div>
                 </div>
@@ -380,7 +394,7 @@ function openMarketDetail(id) {
     
     renderMarketOutcomes(market);
     renderTradingChoices(market);
-    drawMockChart();
+    drawRealChart(market, state.marketPositions);
     
     document.getElementById('marketTabContent').innerHTML = `
         <h3>Règles du marché</h3>
@@ -443,6 +457,13 @@ function selectOutcome(name, btn) {
     updateTradePreview();
 }
 
+function switchTradeMode(mode, btnElement) {
+    state.tradeMode = mode;
+    document.querySelectorAll('.trade-tab').forEach(b => b.classList.remove('active'));
+    if(btnElement) btnElement.classList.add('active');
+    updateTradePreview();
+}
+
 function setTradeAmount(add) {
     const input = document.getElementById('tradeAmount');
     input.value = parseFloat(input.value || 0) + add;
@@ -453,80 +474,141 @@ function updateTradePreview() {
     const amount = parseFloat(document.getElementById('tradeAmount').value) || 0;
     state.tradeAmount = amount;
     
-    if (!state.selectedOutcome) return;
+    if (!state.selectedOutcome) {
+        document.getElementById('previewShares').innerText = '0.00';
+        document.getElementById('previewProfit').innerText = '0.00 PLC';
+        return;
+    }
     
     const prob = state.selectedOutcome.probability / 100;
-    const shares = prob > 0 ? (amount / prob).toFixed(2) : 0;
-    const potential = (shares * 1).toFixed(2);
     
-    document.getElementById('previewShares').innerText = shares;
-    document.getElementById('previewProfit').innerText = `+${potential} PLC`;
+    // Calculer les parts possédées
+    let ownedShares = 0;
+    if (state.user && state.marketPositions) {
+        ownedShares = state.marketPositions
+            .filter(p => p.user_id === state.user.id && p.outcome_id === state.selectedOutcome.id)
+            .reduce((sum, p) => sum + p.shares, 0);
+    }
     
     const btn = document.getElementById('tradeButton');
-    if(amount > 0) {
-        btn.classList.add('active-yes');
-        btn.innerText = `Négocier ${state.selectedOutcome.name}`;
+    
+    if (state.tradeMode === 'buy') {
+        const shares = prob > 0 ? (amount / prob).toFixed(2) : 0;
+        const potential = (shares * 1).toFixed(2);
+        
+        document.getElementById('previewShares').innerText = shares + " parts";
+        document.getElementById('previewProfit').innerText = `+${potential} PLC potentiel`;
+        document.getElementById('previewProfit').className = 'text-green';
+        
+        if(amount > 0) {
+            btn.classList.add('active-yes');
+            btn.classList.remove('btn-danger');
+            btn.innerText = `Acheter ${state.selectedOutcome.name}`;
+            btn.disabled = false;
+        } else {
+            btn.classList.remove('active-yes', 'btn-danger');
+            btn.innerText = 'Négocier';
+            btn.disabled = true;
+        }
     } else {
-        btn.classList.remove('active-yes', 'active-no');
-        btn.innerText = 'Négocier';
+        // Mode Vente
+        const sharesToSell = prob > 0 ? amount / prob : 0;
+        
+        document.getElementById('previewShares').innerText = `-${sharesToSell.toFixed(2)} parts (Possédées: ${ownedShares.toFixed(2)})`;
+        document.getElementById('previewProfit').innerText = `Vous recevrez ${amount.toFixed(2)} PLC`;
+        document.getElementById('previewProfit').className = 'text-blue';
+        
+        if(amount > 0) {
+            btn.classList.add('btn-danger');
+            btn.classList.remove('active-yes');
+            btn.innerText = `Vendre ${state.selectedOutcome.name}`;
+            if (sharesToSell > ownedShares + 0.01) { // tolérance float
+                btn.innerText = "Parts insuffisantes";
+                btn.disabled = true;
+            } else {
+                btn.disabled = false;
+            }
+        } else {
+            btn.classList.remove('active-yes', 'btn-danger');
+            btn.innerText = 'Négocier';
+            btn.disabled = true;
+        }
     }
 }
 
 async function executeTrade() {
-    if(!state.isLoggedIn) {
-        showToast("Vous devez être connecté", "error");
-        return;
-    }
-    
-    if(!state.selectedOutcome) {
-        showToast("Erreur : Ce marché n'a aucune issue disponible.", "error");
-        return;
-    }
-    
+    if(!state.isLoggedIn) return showToast("Vous devez être connecté", "error");
+    if(!state.selectedOutcome) return showToast("Erreur : Ce marché n'a aucune issue disponible.", "error");
     if(state.tradeAmount <= 0) return;
     
-    if(state.user.balance < state.tradeAmount) {
-        showToast('Fonds insuffisants !', 'error');
-        return;
-    }
+    const isBuy = state.tradeMode === 'buy';
+    const prob = state.selectedOutcome.probability / 100;
+    const sharesDelta = state.tradeAmount / prob;
+    const plcDelta = state.tradeAmount;
     
+    // Vérifications
+    if (isBuy) {
+        if(state.user.balance < plcDelta) return showToast('Fonds insuffisants !', 'error');
+    } else {
+        const ownedShares = state.marketPositions
+            .filter(p => p.user_id === state.user.id && p.outcome_id === state.selectedOutcome.id)
+            .reduce((sum, p) => sum + p.shares, 0);
+        if (sharesDelta > ownedShares + 0.01) return showToast('Parts insuffisantes pour cette vente !', 'error');
+    }
+
     const btn = document.getElementById('tradeButton');
     btn.disabled = true;
     btn.innerText = "Transaction...";
     
     try {
-        const prob = state.selectedOutcome.probability / 100;
-        const shares = state.tradeAmount / prob;
-
-        // Supabase insertions
+        // 1. Insertion dans positions
         const { error: posError } = await supabaseClient.from('positions').insert({
             user_id: state.user.id,
             market_id: state.currentMarket.id,
             outcome_id: state.selectedOutcome.id,
-            shares: shares,
-            invested_amount: state.tradeAmount
+            shares: isBuy ? sharesDelta : -sharesDelta,
+            invested_amount: isBuy ? plcDelta : -plcDelta
         });
+        if (posError) throw posError;
         
-        if (posError) {
-            btn.disabled = false;
-            btn.innerText = "Négocier";
-            return showToast("Erreur lors de la transaction", "error");
+        // 2. Mise à jour du solde utilisateur
+        const newBalance = isBuy ? (state.user.balance - plcDelta) : (state.user.balance + plcDelta);
+        await supabaseClient.from('profiles').update({ balance: newBalance }).eq('id', state.user.id);
+        
+        // 3. Mise à jour du volume du marché
+        const newVolume = (state.currentMarket.volume || 0) + (isBuy ? plcDelta : -plcDelta);
+        const safeVolume = newVolume < 0 ? 0 : newVolume; // sécurité
+        await supabaseClient.from('markets').update({ volume: safeVolume }).eq('id', state.currentMarket.id);
+        
+        // 4. Moteur AMM - Recalcul des probabilités
+        const L = state.currentMarket.liquidity || 10;
+        const totalW = L + safeVolume;
+        
+        const { data: allPos } = await supabaseClient.from('positions').select('*').eq('market_id', state.currentMarket.id);
+        
+        for (const out of state.currentMarket.outcomes) {
+            const outInvestments = (allPos || []).filter(p => p.outcome_id === out.id).reduce((sum, p) => sum + p.invested_amount, 0);
+            const w = (L / state.currentMarket.outcomes.length) + outInvestments;
+            let newProb = (w / totalW) * 100;
+            if (newProb < 1) newProb = 1;
+            if (newProb > 99) newProb = 99;
+            
+            await supabaseClient.from('outcomes').update({ probability: newProb.toFixed(2) }).eq('id', out.id);
         }
         
-        // Update balance
-        await supabaseClient.from('profiles').update({ balance: state.user.balance - state.tradeAmount }).eq('id', state.user.id);
-        
         await fetchUserProfile(state.session.user.id);
-        
-        btn.disabled = false;
-        showToast(`Vous avez misé ${state.tradeAmount} PLC sur ${state.selectedOutcome.name}`, 'success');
+        showToast(isBuy ? `Achat réussi !` : `Vente réussie !`, 'success');
         document.getElementById('tradeAmount').value = 0;
-        updateTradePreview();
+        
+        // Rafraichir le marché complet
+        await loadMarkets(); 
+        openMarketDetail(state.currentMarket.id);
+        
     } catch(e) {
+        console.error(e);
+        showToast("Erreur système: " + e.message, "error");
         btn.disabled = false;
         btn.innerText = "Négocier";
-        showToast("Erreur système inattendue", "error");
-        console.error(e);
     }
 }
 
@@ -829,21 +911,52 @@ function initTicker() {
     }
 }
 
-function drawMockChart() {
+function drawRealChart(market, positions) {
     const canvas = document.getElementById('marketChart');
     if(!canvas) return;
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0,0, canvas.width, canvas.height);
+    
+    const out1 = market.outcomes && market.outcomes[0];
+    if(!out1) return;
+    
+    let w1 = (market.liquidity || 10) / market.outcomes.length;
+    let wTotal = (market.liquidity || 10);
+    
+    let points = [{ x: new Date(market.created_at).getTime(), y: 0.5 }];
+    
+    positions.forEach(pos => {
+        if(pos.outcome_id === out1.id) {
+            w1 += pos.invested_amount;
+        }
+        wTotal += pos.invested_amount;
+        points.push({ x: new Date(pos.created_at).getTime(), y: w1 / wTotal });
+    });
+    
+    points.push({ x: Date.now(), y: w1 / wTotal });
+    
+    const minTime = points[0].x;
+    const maxTime = points[points.length-1].x;
+    const timeSpan = maxTime - minTime || 1;
+    
     ctx.beginPath();
-    ctx.moveTo(0, canvas.height/2);
-    for(let i=0; i<canvas.width; i+=10) { ctx.lineTo(i, canvas.height/2 + (Math.random()-0.5)*50); }
+    ctx.moveTo(0, canvas.height * (1 - points[0].y));
+    
+    points.forEach(p => {
+        const x = ((p.x - minTime) / timeSpan) * canvas.width;
+        const y = canvas.height * (1 - p.y);
+        ctx.lineTo(x, y);
+    });
+    
     ctx.strokeStyle = '#2B6FED';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 3;
+    ctx.lineJoin = 'round';
     ctx.stroke();
+    
     ctx.lineTo(canvas.width, canvas.height);
     ctx.lineTo(0, canvas.height);
     const grad = ctx.createLinearGradient(0,0,0,canvas.height);
-    grad.addColorStop(0, 'rgba(43, 111, 237, 0.2)');
+    grad.addColorStop(0, 'rgba(43, 111, 237, 0.3)');
     grad.addColorStop(1, 'rgba(43, 111, 237, 0)');
     ctx.fillStyle = grad;
     ctx.fill();
