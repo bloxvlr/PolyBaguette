@@ -353,12 +353,22 @@ function openMarketDetail(id) {
     document.getElementById('marketBreadcrumb').innerHTML = `Marchés > ${market.category} > ${market.title}`;
     
     document.getElementById('marketDetailHeader').innerHTML = `
-        <img src="${market.icon_url || 'https://picsum.photos/100'}" class="md-icon">
-        <div>
-            <div class="md-title">${market.title}</div>
-            <div class="md-stats">
-                <span><i data-lucide="award" class="icon-sm"></i> ${formatVol(market.volume || 0)} Vol.</span>
-                <span><i data-lucide="calendar" class="icon-sm"></i> ${new Date(market.end_date).toLocaleDateString()}</span>
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; width:100%;">
+            <div style="display:flex; gap:16px;">
+                <img src="${market.icon_url || 'https://picsum.photos/100'}" class="md-icon">
+                <div>
+                    <div class="md-title">${market.title}</div>
+                    <div class="md-stats">
+                        <span><i data-lucide="award" class="icon-sm"></i> ${formatVol(market.volume || 0)} Vol.</span>
+                        <span><i data-lucide="calendar" class="icon-sm"></i> ${new Date(market.end_date).toLocaleDateString()}</span>
+                    </div>
+                </div>
+            </div>
+            <div style="display:flex; gap:8px;">
+                ${state.user && state.user.id === market.creator_id ? 
+                    `<button class="btn-wallet-action btn-danger" onclick="deleteMarket('${market.id}')" style="padding: 6px 12px; font-size: 0.8rem;"><i data-lucide="trash-2"></i> Supprimer</button>` 
+                    : ''}
+                <button class="btn-wallet-action" onclick="reportMarket('${market.id}')" style="padding: 6px 12px; font-size: 0.8rem; background: var(--bg-card); color: var(--text-primary);"><i data-lucide="flag"></i> Signaler</button>
             </div>
         </div>
     `;
@@ -405,13 +415,16 @@ function renderTradingChoices(market) {
             </button>
         `;
         state.selectedOutcome = outcomes[0];
-    } else {
+    } else if(outcomes.length > 0) {
         document.getElementById('tradingChoices').innerHTML = `
             <select style="width:100%; padding: 12px; background:var(--bg-main); color:white; border:1px solid var(--border-color); border-radius:8px;" onchange="selectOutcome(this.value)">
                 ${outcomes.map(o => `<option value="${o.name}">${o.name} - ${o.probability}¢</option>`).join('')}
             </select>
         `;
         state.selectedOutcome = outcomes[0];
+    } else {
+        document.getElementById('tradingChoices').innerHTML = `<div class="text-muted">Aucune issue disponible pour ce marché. (Erreur de création)</div>`;
+        state.selectedOutcome = null;
     }
     updateTradePreview();
 }
@@ -465,6 +478,11 @@ async function executeTrade() {
         return;
     }
     
+    if(!state.selectedOutcome) {
+        showToast("Erreur : Ce marché n'a aucune issue disponible.", "error");
+        return;
+    }
+    
     if(state.tradeAmount <= 0) return;
     
     if(state.user.balance < state.tradeAmount) {
@@ -476,33 +494,40 @@ async function executeTrade() {
     btn.disabled = true;
     btn.innerText = "Transaction...";
     
-    const prob = state.selectedOutcome.probability / 100;
-    const shares = state.tradeAmount / prob;
+    try {
+        const prob = state.selectedOutcome.probability / 100;
+        const shares = state.tradeAmount / prob;
 
-    // Supabase insertions
-    const { error: posError } = await supabaseClient.from('positions').insert({
-        user_id: state.user.id,
-        market_id: state.currentMarket.id,
-        outcome_id: state.selectedOutcome.id,
-        shares: shares,
-        invested_amount: state.tradeAmount
-    });
-    
-    if (posError) {
+        // Supabase insertions
+        const { error: posError } = await supabaseClient.from('positions').insert({
+            user_id: state.user.id,
+            market_id: state.currentMarket.id,
+            outcome_id: state.selectedOutcome.id,
+            shares: shares,
+            invested_amount: state.tradeAmount
+        });
+        
+        if (posError) {
+            btn.disabled = false;
+            btn.innerText = "Négocier";
+            return showToast("Erreur lors de la transaction", "error");
+        }
+        
+        // Update balance
+        await supabaseClient.from('profiles').update({ balance: state.user.balance - state.tradeAmount }).eq('id', state.user.id);
+        
+        await fetchUserProfile(state.session.user.id);
+        
+        btn.disabled = false;
+        showToast(`Vous avez misé ${state.tradeAmount} PLC sur ${state.selectedOutcome.name}`, 'success');
+        document.getElementById('tradeAmount').value = 0;
+        updateTradePreview();
+    } catch(e) {
         btn.disabled = false;
         btn.innerText = "Négocier";
-        return showToast("Erreur lors de la transaction", "error");
+        showToast("Erreur système inattendue", "error");
+        console.error(e);
     }
-    
-    // Update balance
-    await supabaseClient.from('profiles').update({ balance: state.user.balance - state.tradeAmount }).eq('id', state.user.id);
-    
-    await fetchUserProfile(state.session.user.id);
-    
-    btn.disabled = false;
-    showToast(`Vous avez misé ${state.tradeAmount} PLC sur ${state.selectedOutcome.name}`, 'success');
-    document.getElementById('tradeAmount').value = 0;
-    updateTradePreview();
 }
 
 // --- CREATE MARKET ---
@@ -545,10 +570,15 @@ async function handleCreateMarket(e) {
     }
     
     // Insert Outcomes (Oui / Non par défaut pour simplifier)
-    await supabaseClient.from('outcomes').insert([
+    const { error: outError } = await supabaseClient.from('outcomes').insert([
         { market_id: marketData.id, name: 'Oui', probability: 50, current_price: 0.5 },
         { market_id: marketData.id, name: 'Non', probability: 50, current_price: 0.5 }
     ]);
+    
+    if (outError) {
+        console.error(outError);
+        showToast("Marché créé, mais impossible d'ajouter les issues (Problème RLS).", "error");
+    }
     
     // Deduct liquidity
     await supabaseClient.from('profiles').update({ balance: state.user.balance - liquidity }).eq('id', state.user.id);
@@ -559,7 +589,24 @@ async function handleCreateMarket(e) {
     btn.disabled = false;
     btn.innerText = "Ouvrir le Marché";
     closeModal('createMarketModal');
-    showToast("Votre Marché est publié !", "success");
+    if (!outError) showToast("Votre Marché est publié !", "success");
+}
+
+async function deleteMarket(id) {
+    if(!confirm("Êtes-vous sûr de vouloir supprimer définitivement votre marché ?")) return;
+    
+    const { error } = await supabaseClient.from('markets').delete().eq('id', id);
+    if(error) {
+        showToast("Erreur de suppression (droits insuffisants ?) : " + error.message, "error");
+    } else {
+        showToast("Marché supprimé avec succès.", "success");
+        navigateTo('home');
+        loadMarkets();
+    }
+}
+
+function reportMarket(id) {
+    showToast("Ce marché a été signalé à l'équipe de modération.", "info");
 }
 
 // --- PROFILE EDIT ---
@@ -733,8 +780,38 @@ function renderProfile() {
                 <span class="portfolio-value">${formatPC(state.user.balance)} PLC</span>
             </div>
         </div>
+        
+        <div class="profile-danger-zone" style="margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--border-color);">
+            <h3 style="color: var(--text-muted); margin-bottom: 16px; font-size: 0.9rem; text-transform: uppercase;">Paramètres du compte</h3>
+            <div style="display: flex; gap: 16px; flex-wrap: wrap;">
+                <button class="btn-wallet-action" onclick="logout()" style="background: var(--bg-card); color: var(--text-primary);"><i data-lucide="log-out"></i> Me déconnecter</button>
+                <button class="btn-wallet-action btn-danger" onclick="confirmDeleteAccount()"><i data-lucide="trash-2"></i> Supprimer définitivement mon compte</button>
+            </div>
+        </div>
     `;
     setTimeout(() => lucide.createIcons(), 50);
+}
+
+function confirmDeleteAccount() {
+    if (confirm("⚠️ Êtes-vous sûr de vouloir supprimer définitivement votre compte PolyBaguette ?\n\nCette action est IRRÉVERSIBLE. Tous vos PLC, vos marchés créés et vos positions seront supprimés de la base de données.")) {
+        executeDeleteAccount();
+    }
+}
+
+async function executeDeleteAccount() {
+    // Call the Supabase RPC to delete auth.user (which cascades)
+    const { error } = await supabaseClient.rpc('delete_user_account');
+    
+    if (error) {
+        showToast("Erreur lors de la suppression: " + error.message, "error");
+    } else {
+        await supabaseClient.auth.signOut();
+        state.isLoggedIn = false;
+        state.user = null;
+        updateAuthUI();
+        showToast("Votre compte a bien été supprimé.", "success");
+        navigateTo('home');
+    }
 }
 
 // --- UTILS & MOCKS ---
