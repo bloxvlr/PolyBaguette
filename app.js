@@ -339,15 +339,57 @@ function renderMarkets(marketsData) {
     const grid = document.getElementById('marketsGrid');
     if (!grid) return;
     
+    // Featured market: the one with highest volume
+    const sorted = [...filtered].sort((a,b) => (b.volume||0) - (a.volume||0));
+    const featured = sorted[0];
     const fmElement = document.getElementById('featuredMarket');
-    if (fmElement) fmElement.style.display = 'none'; // Hide featured market for uniform grid
+    if (fmElement && featured) {
+        fmElement.style.display = 'block';
+        fmElement.style.cursor = 'pointer';
+        const favs = JSON.parse(localStorage.getItem('pb_favorites') || '[]');
+        const isFav = favs.includes(featured.id);
+        fmElement.innerHTML = `
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
+                <span style="font-size:0.8rem; color:var(--accent-blue); font-weight:700; text-transform:uppercase; letter-spacing:1px;">🔥 ${featured.category}</span>
+            </div>
+            <div style="display:flex; gap:16px; align-items:flex-start; margin-bottom:20px;">
+                <img src="${featured.icon_url || 'https://picsum.photos/100'}" style="width:48px; height:48px; border-radius:50%; object-fit:cover;">
+                <div style="flex:1;">
+                    <div style="font-size:1.4rem; font-weight:700; line-height:1.3; margin-bottom:6px;">${featured.title}</div>
+                    <div style="font-size:0.9rem; color:var(--text-muted);">${formatVol(featured.volume||0)} Vol. &nbsp;·&nbsp; Se termine le ${new Date(featured.end_date).toLocaleDateString()}</div>
+                </div>
+                <div style="display:flex; gap:10px;">
+                    <button onclick="event.stopPropagation(); shareMarket('${featured.id}')" style="background:var(--bg-card); border:1px solid var(--border-color); border-radius:8px; padding:8px; cursor:pointer; color:var(--text-muted);"><i data-lucide='share-2' style='width:16px;height:16px;'></i></button>
+                    <button id="fav-feat-${featured.id}" onclick="event.stopPropagation(); toggleFavorite('${featured.id}', this)" style="background:var(--bg-card); border:1px solid var(--border-color); border-radius:8px; padding:8px; cursor:pointer; color:${isFav ? 'var(--accent-blue)' : 'var(--text-muted)'};"><i data-lucide='bookmark' style='width:16px;height:16px;'></i></button>
+                </div>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:12px;">
+                ${(featured.outcomes||[]).slice(0,3).map(o => `
+                    <div style="display:flex; align-items:center; justify-content:space-between;">
+                        <span style="font-size:1rem; font-weight:500; color:var(--text-secondary);">${o.name}</span>
+                        <div style="display:flex; align-items:center; gap:12px;">
+                            <span style="font-size:1.1rem; font-weight:700;">${Math.round(o.probability)}%</span>
+                            <button style="background:rgba(39,174,96,0.15); color:#27ae60; border:none; border-radius:6px; padding:8px 16px; font-weight:600; cursor:pointer;">Oui.</button>
+                            <button style="background:rgba(235,87,87,0.15); color:#eb5757; border:none; border-radius:6px; padding:8px 16px; font-weight:600; cursor:pointer;">Non.</button>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+        fmElement.onclick = () => openMarketDetail(featured.id);
+        setTimeout(() => lucide.createIcons(), 20);
+    }
     
-    if (filtered.length === 0) {
-        grid.innerHTML = '<div style="grid-column: 1/-1; text-align:center; padding:40px; color:var(--text-muted)">Aucun marché trouvé dans cette catégorie.</div>';
+    const rest = sorted.slice(1);
+    if (rest.length === 0) {
+        grid.innerHTML = '';
         return;
     }
     
-    grid.innerHTML = filtered.map(m => `
+    const favs = JSON.parse(localStorage.getItem('pb_favorites') || '[]');
+    grid.innerHTML = rest.map(m => {
+        const isFav = favs.includes(m.id);
+        return `
         <div class="market-card" onclick="openMarketDetail('${m.id}')" style="display:flex; flex-direction:column; min-height: 200px;">
             <div class="mc-header" style="display: flex; gap: 12px; align-items: flex-start; margin-bottom: 20px;">
                 <img src="${m.icon_url || 'https://picsum.photos/100'}" class="mc-icon" style="width: 36px; height: 36px; border-radius: 50%; object-fit: cover;">
@@ -355,52 +397,86 @@ function renderMarkets(marketsData) {
             </div>
             <div class="mc-outcomes" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 24px;">
                 ${(!m.outcomes || m.outcomes.length === 0) ? `
-                    <div style="display: flex; align-items: center; justify-content: space-between;">
-                        <span style="color: var(--text-secondary); font-size: 0.95rem; font-weight: 500;">Oui</span>
-                        <div style="display: flex; align-items: center; gap: 12px;">
-                            <span style="background: var(--accent-blue); color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase;">Nouveau</span>
-                            <span style="font-weight: 600; font-size: 1rem; color: var(--text-primary);">0%</span>
-                            <div style="display: flex; gap: 6px;">
-                                <button style="background: rgba(39, 174, 96, 0.15); color: #27ae60; border: none; border-radius: 6px; padding: 6px 12px; font-weight: 600; font-size: 0.85rem; cursor: pointer;">Oui.</button>
-                                <button style="background: rgba(235, 87, 87, 0.15); color: #eb5757; border: none; border-radius: 6px; padding: 6px 12px; font-weight: 600; font-size: 0.85rem; cursor: pointer;">Non.</button>
+                    <div style="display:flex; align-items:center; justify-content:space-between;">
+                        <span style="color:var(--text-secondary);font-size:0.95rem;font-weight:500;">Oui</span>
+                        <div style="display:flex;align-items:center;gap:12px;">
+                            <span style="background:var(--accent-blue);color:white;padding:2px 6px;border-radius:4px;font-size:0.7rem;font-weight:700;text-transform:uppercase;">Nouveau</span>
+                            <span style="font-weight:600;font-size:1rem;color:var(--text-primary);">0%</span>
+                            <div style="display:flex;gap:6px;">
+                                <button style="background:rgba(39,174,96,0.15);color:#27ae60;border:none;border-radius:6px;padding:6px 12px;font-weight:600;font-size:0.85rem;cursor:pointer;">Oui.</button>
+                                <button style="background:rgba(235,87,87,0.15);color:#eb5757;border:none;border-radius:6px;padding:6px 12px;font-weight:600;font-size:0.85rem;cursor:pointer;">Non.</button>
                             </div>
                         </div>
                     </div>
-                    <div style="display: flex; align-items: center; justify-content: space-between;">
-                        <span style="color: var(--text-secondary); font-size: 0.95rem; font-weight: 500;">Non</span>
-                        <div style="display: flex; align-items: center; gap: 12px;">
-                            <span style="font-weight: 600; font-size: 1rem; color: var(--text-primary);">0%</span>
-                            <div style="display: flex; gap: 6px;">
-                                <button style="background: rgba(39, 174, 96, 0.15); color: #27ae60; border: none; border-radius: 6px; padding: 6px 12px; font-weight: 600; font-size: 0.85rem; cursor: pointer;">Oui.</button>
-                                <button style="background: rgba(235, 87, 87, 0.15); color: #eb5757; border: none; border-radius: 6px; padding: 6px 12px; font-weight: 600; font-size: 0.85rem; cursor: pointer;">Non.</button>
+                    <div style="display:flex;align-items:center;justify-content:space-between;">
+                        <span style="color:var(--text-secondary);font-size:0.95rem;font-weight:500;">Non</span>
+                        <div style="display:flex;align-items:center;gap:12px;">
+                            <span style="font-weight:600;font-size:1rem;color:var(--text-primary);">0%</span>
+                            <div style="display:flex;gap:6px;">
+                                <button style="background:rgba(39,174,96,0.15);color:#27ae60;border:none;border-radius:6px;padding:6px 12px;font-weight:600;font-size:0.85rem;cursor:pointer;">Oui.</button>
+                                <button style="background:rgba(235,87,87,0.15);color:#eb5757;border:none;border-radius:6px;padding:6px 12px;font-weight:600;font-size:0.85rem;cursor:pointer;">Non.</button>
                             </div>
                         </div>
                     </div>
                 ` : m.outcomes.slice(0, 3).map((o, index) => `
-                    <div class="mc-outcome-row" style="display: flex; align-items: center; justify-content: space-between;">
-                        <span class="mc-outcome-name" style="color: var(--text-secondary); font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; font-weight: 500;">${o.name}</span>
-                        <div style="display: flex; align-items: center; gap: 12px;">
-                            ${(m.volume === 0 && index === 0) ? '<span style="background: var(--accent-blue); color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase;">Nouveau</span>' : ''}
-                            <span class="mc-outcome-prob" style="font-weight: 600; font-size: 1rem; color: var(--text-primary);">${Math.round(o.probability)}%</span>
-                            <div class="mc-outcome-actions" style="display: flex; gap: 6px;">
-                                <button class="btn-mc-yes" style="background: rgba(39, 174, 96, 0.15); color: #27ae60; border: 1px solid transparent; border-radius: 6px; padding: 6px 12px; font-weight: 600; font-size: 0.85rem; cursor: pointer; transition: 0.2s;">Oui.</button>
-                                <button class="btn-mc-no" style="background: rgba(235, 87, 87, 0.15); color: #eb5757; border: 1px solid transparent; border-radius: 6px; padding: 6px 12px; font-weight: 600; font-size: 0.85rem; cursor: pointer; transition: 0.2s;">Non.</button>
+                    <div class="mc-outcome-row" style="display:flex;align-items:center;justify-content:space-between;">
+                        <span style="color:var(--text-secondary);font-size:0.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px;font-weight:500;">${o.name}</span>
+                        <div style="display:flex;align-items:center;gap:12px;">
+                            ${(m.volume === 0 && index === 0) ? '<span style="background:var(--accent-blue);color:white;padding:2px 6px;border-radius:4px;font-size:0.7rem;font-weight:700;text-transform:uppercase;">Nouveau</span>' : ''}
+                            <span style="font-weight:600;font-size:1rem;color:var(--text-primary);">${Math.round(o.probability)}%</span>
+                            <div style="display:flex;gap:6px;">
+                                <button class="btn-mc-yes" style="background:rgba(39,174,96,0.15);color:#27ae60;border:1px solid transparent;border-radius:6px;padding:6px 12px;font-weight:600;font-size:0.85rem;cursor:pointer;transition:0.2s;">Oui.</button>
+                                <button class="btn-mc-no" style="background:rgba(235,87,87,0.15);color:#eb5757;border:1px solid transparent;border-radius:6px;padding:6px 12px;font-weight:600;font-size:0.85rem;cursor:pointer;transition:0.2s;">Non.</button>
                             </div>
                         </div>
                     </div>
                 `).join('')}
             </div>
-            <div class="mc-footer" style="display: flex; justify-content: space-between; align-items: center; color: var(--text-muted); font-size: 0.85rem; margin-top: auto; font-weight: 500;">
-                <span class="mc-volume">${formatVol(m.volume || 0)} Vol.</span>
-                <div class="mc-footer-icons" style="display: flex; gap: 12px; color: var(--text-muted);">
-                    <i data-lucide="gift" style="width: 18px; height: 18px;"></i>
-                    <i data-lucide="bookmark" style="width: 18px; height: 18px;"></i>
+            <div class="mc-footer" style="display:flex;justify-content:space-between;align-items:center;color:var(--text-muted);font-size:0.85rem;margin-top:auto;font-weight:500;">
+                <span>${formatVol(m.volume || 0)} Vol.</span>
+                <div style="display:flex;gap:10px;">
+                    <button id="share-${m.id}" onclick="event.stopPropagation(); shareMarket('${m.id}')" style="background:none;border:none;cursor:pointer;color:var(--text-muted);padding:2px;"><i data-lucide='share-2' style='width:16px;height:16px;'></i></button>
+                    <button id="fav-${m.id}" onclick="event.stopPropagation(); toggleFavorite('${m.id}', this)" style="background:none;border:none;cursor:pointer;color:${isFav ? 'var(--accent-blue)' : 'var(--text-muted)'};padding:2px;"><i data-lucide='bookmark' style='width:16px;height:16px;'></i></button>
                 </div>
             </div>
-        </div>
-    `).join('');
+        </div>`;
+    }).join('');
     
     setTimeout(() => lucide.createIcons(), 50);
+}
+
+function setMarketView(mode, btn) {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    if(btn) btn.classList.add('active');
+    const grid = document.getElementById('marketsGrid');
+    if(mode === 'list') {
+        grid.style.gridTemplateColumns = '1fr';
+    } else {
+        grid.style.gridTemplateColumns = '';
+    }
+}
+
+function shareMarket(marketId) {
+    const url = `${window.location.origin}${window.location.pathname}?market=${marketId}`;
+    navigator.clipboard.writeText(url).then(() => {
+        showToast('Lien copié dans le presse-papier !', 'success');
+    }).catch(() => {
+        showToast('Lien : ' + url, 'info');
+    });
+}
+
+function toggleFavorite(marketId, btn) {
+    let favs = JSON.parse(localStorage.getItem('pb_favorites') || '[]');
+    if(favs.includes(marketId)) {
+        favs = favs.filter(id => id !== marketId);
+        if(btn) btn.style.color = 'var(--text-muted)';
+        showToast('Retiré des favoris', 'info');
+    } else {
+        favs.push(marketId);
+        if(btn) btn.style.color = 'var(--accent-blue)';
+        showToast('Ajouté aux favoris !', 'success');
+    }
+    localStorage.setItem('pb_favorites', JSON.stringify(favs));
 }
 
 // --- MARKET DETAIL & TRADING ---
@@ -514,10 +590,27 @@ function renderMarketOutcomes(market) {
             </div>
             <div class="md-outcome-center">${o.probability}%</div>
             <div class="md-outcome-right">
-                <button class="btn-buy-yes" onclick="setupTrade('${o.name}')">Miser</button>
+                <button class="btn-buy-yes" onclick="selectOutcomeAndScroll('${o.id}', '${o.name}')">Miser</button>
             </div>
         </div>
     `).join('');
+}
+
+function selectOutcomeAndScroll(outcomeId, outcomeName) {
+    // Select the outcome in the trading panel
+    const outcome = state.currentMarket.outcomes.find(o => o.id === outcomeId || o.name === outcomeName);
+    if(outcome) state.selectedOutcome = outcome;
+    // Highlight the corresponding choice button
+    document.querySelectorAll('.choice-btn').forEach(b => {
+        if(b.innerText.includes(outcomeName)) {
+            b.classList.add('selected');
+        } else {
+            b.classList.remove('selected');
+        }
+    });
+    updateTradePreview();
+    // Scroll to trading panel
+    document.getElementById('tradingPanel').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 function renderTradingChoices(market) {
@@ -974,6 +1067,30 @@ function renderProfile() {
             </div>
         </div>
     `;
+    
+    // Render favorites
+    const favs = JSON.parse(localStorage.getItem('pb_favorites') || '[]');
+    const favMarkets = state.markets.filter(m => favs.includes(m.id));
+    const favSection = document.createElement('div');
+    favSection.style.cssText = 'margin-top:32px; padding-top:20px; border-top:1px solid var(--border-color);';
+    favSection.innerHTML = `
+        <h3 style="margin-bottom:16px; display:flex; align-items:center; gap:8px;"><i data-lucide="bookmark"></i> Mes Favoris (${favMarkets.length})</h3>
+        ${ favMarkets.length === 0 
+            ? '<p style="color:var(--text-muted);">Aucun favori. Marquez des prédictions avec ◎ depuis la page d\'accueil !</p>'
+            : favMarkets.map(m => `
+                <div onclick="openMarketDetail('${m.id}')" style="display:flex; align-items:center; gap:12px; padding:12px; background:var(--bg-card); border:1px solid var(--border-color); border-radius:10px; margin-bottom:8px; cursor:pointer;">
+                    <img src="${m.icon_url || 'https://picsum.photos/40'}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;">
+                    <div style="flex:1;">
+                        <div style="font-weight:600;">${m.title}</div>
+                        <div style="font-size:0.8rem;color:var(--text-muted);">${formatVol(m.volume||0)} Vol.</div>
+                    </div>
+                    <span style="color:var(--accent-blue); font-weight:700;">${(m.outcomes && m.outcomes[0]) ? Math.round(m.outcomes[0].probability) + '%' : '--'}</span>
+                </div>
+            `).join('')
+        }
+    `;
+    content.appendChild(favSection);
+    
     setTimeout(() => lucide.createIcons(), 50);
 }
 
@@ -1002,9 +1119,69 @@ async function executeDeleteAccount() {
 // --- UTILS & MOCKS ---
 
 async function loadRecentTransactions() {
-    // Just a placeholder
     const list = document.getElementById('transactionsList');
-    if(list) list.innerHTML = '<div class="text-muted">Aucune transaction récente</div>';
+    const topList = document.getElementById('topMarketsList');
+    if(!list && !topList) return;
+    
+    // Real sidebar: top markets by volume
+    if(topList && state.markets && state.markets.length > 0) {
+        const top = [...state.markets].sort((a,b) => (b.volume||0) - (a.volume||0)).slice(0, 5);
+        topList.innerHTML = top.map((m, i) => {
+            const out = m.outcomes && m.outcomes[0];
+            const prob = out ? Math.round(out.probability) : 50;
+            return `
+                <div onclick="openMarketDetail('${m.id}')" style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border-color);cursor:pointer;">
+                    <span style="color:var(--text-muted);font-weight:700;min-width:18px;">${i+1}</span>
+                    <div style="flex:1;min-width:0;">
+                        <div style="font-size:0.9rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${m.title}</div>
+                        <div style="font-size:0.8rem;color:var(--text-muted);">${formatVol(m.volume||0)} Vol.</div>
+                    </div>
+                    <div style="text-align:right;">
+                        <div style="font-size:1rem;font-weight:700;color:var(--accent-green);">${prob}%</div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    } else if(topList) {
+        topList.innerHTML = '<div class="text-muted" style="padding:12px 0;">Aucun marché disponible</div>';
+    }
+    
+    // Recent global positions as activity feed
+    if(list && supabaseClient) {
+        try {
+            const { data: recentPos } = await supabaseClient
+                .from('positions')
+                .select('*, profiles(username), outcomes(name), markets(title)')
+                .order('created_at', { ascending: false })
+                .limit(8);
+            
+            if(recentPos && recentPos.length > 0) {
+                list.innerHTML = recentPos.map(p => {
+                    const isBuy = p.shares > 0;
+                    const color = isBuy ? 'var(--accent-green)' : 'var(--accent-red)';
+                    const action = isBuy ? 'a acheté' : 'a vendu';
+                    const username = p.profiles?.username || 'Anonyme';
+                    const outcome = p.outcomes?.name || 'Issue';
+                    const market = p.markets?.title || 'Marché';
+                    return `
+                        <div style="padding:10px 0;border-bottom:1px solid var(--border-color);font-size:0.85rem;">
+                            <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
+                                <span style="font-weight:600;">${username}</span>
+                                <span style="color:${color};font-weight:700;">${isBuy ? '+' : '-'}${Math.abs(p.invested_amount).toFixed(1)} PLC</span>
+                            </div>
+                            <div style="color:var(--text-muted);">${action} <b style="color:var(--text-primary);">${outcome}</b> sur ${market}</div>
+                        </div>
+                    `;
+                }).join('');
+            } else {
+                list.innerHTML = '<div class="text-muted" style="padding:12px 0;">Aucune activité récente</div>';
+            }
+        } catch(e) {
+            list.innerHTML = '<div class="text-muted" style="padding:12px 0;">Aucune activité récente</div>';
+        }
+    } else if(list) {
+        list.innerHTML = '<div class="text-muted" style="padding:12px 0;">Aucune activité récente</div>';
+    }
 }
 
 function initTicker() {

@@ -125,7 +125,7 @@
         <div class="page active" id="homePage">
             <div class="home-layout">
                 <div class="home-left">
-                    <div class="featured-market" id="featuredMarket"></div>
+                    <div class="featured-market" id="featuredMarket" style="background:var(--bg-card); border:1px solid var(--border-color); border-radius:16px; padding:24px; margin-bottom:24px; cursor:pointer;"></div>
                     <!-- All Markets Grid -->
                     <div class="markets-section">
                         <div class="section-header">
@@ -142,9 +142,15 @@
                 <div class="home-right">
                     <div class="sidebar-section">
                         <div class="sidebar-header">
-                            <h3>Dernières transactions</h3>
+                            <h3>Dernières nouvelles &rsaquo;</h3>
                         </div>
-                        <div class="news-list" id="transactionsList"></div>
+                        <div id="topMarketsList"></div>
+                    </div>
+                    <div class="sidebar-section" style="margin-top: 24px;">
+                        <div class="sidebar-header">
+                            <h3>Activité récente &rsaquo;</h3>
+                        </div>
+                        <div id="transactionsList"></div>
                     </div>
                 </div>
             </div>
@@ -154,7 +160,10 @@
         <div class="page" id="marketPage">
             <div class="market-detail-layout">
                 <div class="market-detail-left">
-                    <div class="market-breadcrumb" id="marketBreadcrumb"></div>
+                    <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
+                        <button onclick="navigateTo('home')" style="background:var(--bg-card); border:1px solid var(--border-color); border-radius:8px; padding:8px 12px; cursor:pointer; color:var(--text-primary); display:flex; align-items:center; gap:6px; font-size:0.9rem;"><i data-lucide="arrow-left" style="width:16px;height:16px;"></i> Retour</button>
+                        <div class="market-breadcrumb" id="marketBreadcrumb" style="margin-bottom:0;"></div>
+                    </div>
                     <div class="market-detail-header" id="marketDetailHeader"></div>
                     <div class="market-chart-container">
                         <canvas id="marketChart" width="800" height="300"></canvas>
