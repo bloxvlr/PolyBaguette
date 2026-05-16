@@ -354,10 +354,33 @@ function renderMarkets(marketsData) {
                 <div class="mc-title" style="font-weight: 600; font-size: 1.05rem; line-height: 1.3; color: var(--text-primary);">${m.title}</div>
             </div>
             <div class="mc-outcomes" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 24px;">
-                ${(m.outcomes || []).slice(0, 3).map(o => `
+                ${(!m.outcomes || m.outcomes.length === 0) ? `
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                        <span style="color: var(--text-secondary); font-size: 0.95rem; font-weight: 500;">Oui</span>
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <span style="background: var(--accent-blue); color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase;">Nouveau</span>
+                            <span style="font-weight: 600; font-size: 1rem; color: var(--text-primary);">0%</span>
+                            <div style="display: flex; gap: 6px;">
+                                <button style="background: rgba(39, 174, 96, 0.15); color: #27ae60; border: none; border-radius: 6px; padding: 6px 12px; font-weight: 600; font-size: 0.85rem; cursor: pointer;">Oui.</button>
+                                <button style="background: rgba(235, 87, 87, 0.15); color: #eb5757; border: none; border-radius: 6px; padding: 6px 12px; font-weight: 600; font-size: 0.85rem; cursor: pointer;">Non.</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                        <span style="color: var(--text-secondary); font-size: 0.95rem; font-weight: 500;">Non</span>
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <span style="font-weight: 600; font-size: 1rem; color: var(--text-primary);">0%</span>
+                            <div style="display: flex; gap: 6px;">
+                                <button style="background: rgba(39, 174, 96, 0.15); color: #27ae60; border: none; border-radius: 6px; padding: 6px 12px; font-weight: 600; font-size: 0.85rem; cursor: pointer;">Oui.</button>
+                                <button style="background: rgba(235, 87, 87, 0.15); color: #eb5757; border: none; border-radius: 6px; padding: 6px 12px; font-weight: 600; font-size: 0.85rem; cursor: pointer;">Non.</button>
+                            </div>
+                        </div>
+                    </div>
+                ` : m.outcomes.slice(0, 3).map((o, index) => `
                     <div class="mc-outcome-row" style="display: flex; align-items: center; justify-content: space-between;">
                         <span class="mc-outcome-name" style="color: var(--text-secondary); font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; font-weight: 500;">${o.name}</span>
                         <div style="display: flex; align-items: center; gap: 12px;">
+                            ${(m.volume === 0 && index === 0) ? '<span style="background: var(--accent-blue); color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase;">Nouveau</span>' : ''}
                             <span class="mc-outcome-prob" style="font-weight: 600; font-size: 1rem; color: var(--text-primary);">${Math.round(o.probability)}%</span>
                             <div class="mc-outcome-actions" style="display: flex; gap: 6px;">
                                 <button class="btn-mc-yes" style="background: rgba(39, 174, 96, 0.15); color: #27ae60; border: 1px solid transparent; border-radius: 6px; padding: 6px 12px; font-weight: 600; font-size: 0.85rem; cursor: pointer; transition: 0.2s;">Oui.</button>
