@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="PolyBaguette - La plateforme française de marchés prédictifs. Pariez sur l'avenir avec des PolyCoins.">
+    <title>PolyBaguette - Marchés Prédictifs à la Française</title>
+    <link rel="icon" type="image/png" href="logo poylymarket.png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+    <!-- TICKER - Fil de la Mie -->
+    <div class="ticker-bar" id="tickerBar">
+        <div class="ticker-content" id="tickerContent"></div>
+    </div>
+
+    <!-- HEADER -->
+    <header class="header" id="mainHeader">
+        <div class="header-left">
+            <div class="logo" onclick="navigateTo('home')">
+                <img src="logo poylymarket.png" alt="PolyBaguette" class="logo-icon" style="width: auto; height: 28px;">
+                <span class="logo-text">PolyBaguette</span>
+            </div>
+        </div>
+        <div class="header-center">
+            <div class="search-bar">
+                <i data-lucide="search" class="search-icon"></i>
+                <input type="text" id="searchInput" placeholder="Rechercher des pétrins..." autocomplete="off">
+            </div>
+        </div>
+        <div class="header-right">
+            <nav class="header-nav">
+                <a class="nav-link active" onclick="navigateTo('home')" id="navHome">
+                    <i data-lucide="layout-grid"></i>
+                    Pétrins
+                </a>
+                <a class="nav-link" onclick="navigateTo('portfolio')" id="navPortfolio">
+                    <i data-lucide="briefcase"></i>
+                    Fournil
+                </a>
+                <a class="nav-link" onclick="navigateTo('leaderboard')" id="navLeaderboard">
+                    <i data-lucide="award"></i>
+                    Classement
+                </a>
+            </nav>
+            <!-- Auth buttons (logged out) -->
+            <div class="auth-buttons" id="authButtons">
+                <button class="btn-secondary" onclick="openModal('loginModal')">Se connecter</button>
+                <button class="btn-primary" onclick="openModal('registerModal')">S'inscrire</button>
+            </div>
+            <!-- Wallet (logged in) -->
+            <div class="wallet-display" id="walletDisplay" style="display:none">
+                <div class="wallet-btn" onclick="toggleWalletDropdown()">
+                    <img src="polyCoin.png" alt="PLC" class="wallet-coin-icon">
+                    <span class="wallet-balance" id="walletBalance">100.00</span>
+                    <span class="wallet-label">PLC</span>
+                </div>
+                <div class="wallet-dropdown" id="walletDropdown">
+                    <div class="wallet-dropdown-top">
+                        <div class="wallet-dropdown-title">Total Balance <i data-lucide="eye-off" class="icon-sm"></i></div>
+                        <div class="wallet-dropdown-balance" id="walletDropdownBalance">100.00 PLC</div>
+                        <div class="wallet-dropdown-euro" id="walletDropdownEuro">$ 92.00 USD</div>
+                        <div class="wallet-dropdown-buttons">
+                            <button class="wallet-btn-action" onclick="openModal('sendModal')">Send</button>
+                            <button class="wallet-btn-action" onclick="navigateTo('portfolio')">Portfolio</button>
+                        </div>
+                    </div>
+                    <div class="wallet-dropdown-section-title">
+                        Wallets
+                        <div class="wallet-icons-right">
+                            <i data-lucide="plus" class="icon-sm"></i> <i data-lucide="arrow-up-down" class="icon-sm"></i>
+                        </div>
+                    </div>
+                    <div class="wallet-item">
+                        <div class="wallet-item-icon"><img src="polyCoin.png" alt="PLC"></div>
+                        <div class="wallet-item-info">
+                            <div class="wallet-item-name">PLC</div>
+                            <div class="wallet-item-sub">PolyCoin</div>
+                        </div>
+                        <div class="wallet-item-amounts">
+                            <div class="wallet-item-balance" id="walletItemBalance">100.00</div>
+                            <div class="wallet-item-eur" id="walletItemEur">$ 92.00</div>
+                        </div>
+                    </div>
+                    <div class="wallet-actions-bottom">
+                        <button class="btn-wallet-action" onclick="navigateTo('profile')"><i data-lucide="user"></i> Mon Profil</button>
+                        <button class="btn-wallet-action btn-danger" onclick="logout()"><i data-lucide="log-out"></i> Déconnexion</button>
+                    </div>
+                </div>
+            </div>
+            <div class="user-avatar" id="userAvatar" style="display:none" onclick="navigateTo('profile')">
+                <span id="userAvatarLetter">B</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- CATEGORY BAR -->
+    <div class="category-bar" id="categoryBar">
+        <div class="category-scroll">
+            <button class="cat-btn active" onclick="filterCategory('all', this)"><i data-lucide="flame"></i> Tendances</button>
+            <button class="cat-btn" onclick="filterCategory('news', this)"><i data-lucide="newspaper"></i> Dernières nouvelles</button>
+            <button class="cat-btn" onclick="filterCategory('new', this)"><i data-lucide="sparkles"></i> Nouveau</button>
+            <button class="cat-btn" onclick="filterCategory('politique', this)"><i data-lucide="landmark"></i> Politique</button>
+            <button class="cat-btn" onclick="filterCategory('sport', this)"><i data-lucide="trophy"></i> Sports</button>
+            <button class="cat-btn" onclick="filterCategory('crypto', this)"><i data-lucide="bitcoin"></i> Crypto</button>
+            <button class="cat-btn" onclick="filterCategory('esport', this)"><i data-lucide="gamepad-2"></i> Esports</button>
+            <button class="cat-btn" onclick="filterCategory('finance', this)"><i data-lucide="line-chart"></i> Finance</button>
+            <button class="cat-btn" onclick="filterCategory('geo', this)"><i data-lucide="globe"></i> Géopolitique</button>
+            <button class="cat-btn" onclick="filterCategory('tech', this)"><i data-lucide="laptop"></i> Tech</button>
+            <button class="cat-btn" onclick="filterCategory('culture', this)"><i data-lucide="masks-theater"></i> Culture</button>
+            <button class="cat-btn" onclick="filterCategory('economie', this)"><i data-lucide="bar-chart-3"></i> Économie</button>
+            <button class="cat-btn" onclick="filterCategory('meteo', this)"><i data-lucide="cloud-sun"></i> Météo</button>
+            <button class="cat-btn" onclick="filterCategory('people', this)"><i data-lucide="star"></i> People</button>
+        </div>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <main class="main-content" id="mainContent">
+
+        <!-- HOME PAGE -->
+        <div class="page active" id="homePage">
+            <!-- Featured Market -->
+            <div class="home-layout">
+                <div class="home-left">
+                    <div class="featured-market" id="featuredMarket"></div>
+                    <!-- All Markets Grid -->
+                    <div class="markets-section">
+                        <div class="section-header">
+                            <h2>Tous les pétrins</h2>
+                            <div class="section-controls">
+                                <button class="filter-btn active" onclick="setMarketView('grid', this)">
+                                    <i data-lucide="grid-2x2"></i>
+                                </button>
+                                <button class="filter-btn" onclick="setMarketView('list', this)">
+                                    <i data-lucide="list"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="markets-grid" id="marketsGrid"></div>
+                    </div>
+                </div>
+                <div class="home-right">
+                    <div class="sidebar-section">
+                        <div class="sidebar-header">
+                            <h3>Dernières nouvelles</h3>
+                            <span class="see-more" onclick="filterCategory('news')"><i data-lucide="chevron-right"></i></span>
+                        </div>
+                        <div class="news-list" id="newsList"></div>
+                    </div>
+                    <div class="sidebar-section">
+                        <div class="sidebar-header">
+                            <h3>Sujets populaires</h3>
+                            <span class="see-more"><i data-lucide="chevron-right"></i></span>
+                        </div>
+                        <div class="topics-list" id="topicsList"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MARKET DETAIL PAGE -->
+        <div class="page" id="marketPage">
+            <div class="market-detail-layout">
+                <div class="market-detail-left">
+                    <div class="market-breadcrumb" id="marketBreadcrumb"></div>
+                    <div class="market-detail-header" id="marketDetailHeader"></div>
+                    <div class="market-chart-container">
+                        <canvas id="marketChart" width="800" height="300"></canvas>
+                        <div class="chart-timeframes">
+                            <button class="tf-btn" onclick="setTimeframe('1h')">1H</button>
+                            <button class="tf-btn" onclick="setTimeframe('6h')">6H</button>
+                            <button class="tf-btn" onclick="setTimeframe('1d')">1J</button>
+                            <button class="tf-btn active" onclick="setTimeframe('1w')">1S</button>
+                            <button class="tf-btn" onclick="setTimeframe('1m')">1M</button>
+                            <button class="tf-btn" onclick="setTimeframe('all')">TOUT</button>
+                        </div>
+                    </div>
+                    <div class="market-outcomes-list" id="marketOutcomesList"></div>
+                    <div class="market-tabs">
+                        <button class="tab-btn active" onclick="switchMarketTab('about', this)">À propos</button>
+                        <button class="tab-btn" onclick="switchMarketTab('activity', this)">Activité</button>
+                        <button class="tab-btn" onclick="switchMarketTab('comments', this)">Commentaires</button>
+                    </div>
+                    <div class="market-tab-content" id="marketTabContent"></div>
+                </div>
+                <div class="market-detail-right">
+                    <div class="trading-panel" id="tradingPanel">
+                        <div class="trading-panel-header" id="tradingPanelHeader"></div>
+                        <div class="trading-tabs">
+                            <button class="trade-tab active" onclick="switchTradeMode('buy', this)">Enfourner</button>
+                            <button class="trade-tab" onclick="switchTradeMode('sell', this)">Défourner</button>
+                        </div>
+                        <div class="trading-order-type">
+                            <span>Commande à Emporter</span>
+                            <div class="order-toggle">
+                                <button class="order-btn active" onclick="setOrderType('market', this)">Marché</button>
+                                <button class="order-btn" onclick="setOrderType('limit', this)">Sur Place</button>
+                            </div>
+                        </div>
+                        <div class="trading-choices" id="tradingChoices"></div>
+                        <div class="trading-amount">
+                            <label>Montant</label>
+                            <div class="amount-input-wrapper">
+                                <img src="polyCoin.png" alt="PLC" class="amount-coin">
+                                <input type="number" id="tradeAmount" value="0" min="0" step="0.01" oninput="updateTradePreview()">
+                            </div>
+                            <div class="amount-shortcuts">
+                                <button onclick="setTradeAmount(1)">+1</button>
+                                <button onclick="setTradeAmount(5)">+5</button>
+                                <button onclick="setTradeAmount(10)">+10</button>
+                                <button onclick="setTradeAmount(100)">+100</button>
+                            </div>
+                        </div>
+                        <div class="trade-preview" id="tradePreview">
+                            <div class="preview-row"><span>Parts estimées</span><span id="previewShares">0.00</span></div>
+                            <div class="preview-row"><span>Gain potentiel</span><span id="previewProfit" class="text-green">0.00 PLC</span></div>
+                        </div>
+                        <button class="btn-trade" id="tradeButton" onclick="executeTrade()">Négocier</button>
+                        <p class="trade-disclaimer">En négociant, vous acceptez les <a href="#">Conditions d'utilisation</a>.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- PORTFOLIO PAGE -->
+        <div class="page" id="portfolioPage">
+            <div class="portfolio-layout">
+                <div class="portfolio-header-section">
+                    <h1>Mon Fournil <i data-lucide="chef-hat"></i></h1>
+                    <div class="portfolio-summary">
+                        <div class="portfolio-card">
+                            <span class="portfolio-label">Solde disponible</span>
+                            <span class="portfolio-value" id="portBalance">100.00 PLC</span>
+                        </div>
+                        <div class="portfolio-card">
+                            <span class="portfolio-label">Valeur positions</span>
+                            <span class="portfolio-value" id="portPositions">0.00 PLC</span>
+                        </div>
+                        <div class="portfolio-card">
+                            <span class="portfolio-label">Valeur totale</span>
+                            <span class="portfolio-value highlight" id="portTotal">100.00 PLC</span>
+                        </div>
+                        <div class="portfolio-card">
+                            <span class="portfolio-label">Trades totaux</span>
+                            <span class="portfolio-value" id="portTrades">0</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="portfolio-tabs">
+                    <button class="tab-btn active" onclick="switchPortfolioTab('positions', this)">Positions ouvertes</button>
+                    <button class="tab-btn" onclick="switchPortfolioTab('history', this)">Historique</button>
+                    <button class="tab-btn" onclick="switchPortfolioTab('resolved', this)">Résolus</button>
+                </div>
+                <div class="portfolio-content" id="portfolioContent">
+                    <div class="empty-state">
+                        <i data-lucide="cookie" style="width: 48px; height: 48px; opacity: 0.5; margin-bottom: 16px;"></i>
+                        <p>Votre fournil est vide ! Allez enfourner sur un pétrin.</p>
+                        <button class="btn-primary" onclick="navigateTo('home')">Explorer les pétrins</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- LEADERBOARD PAGE -->
+        <div class="page" id="leaderboardPage">
+            <div class="leaderboard-layout">
+                <h1><i data-lucide="crown"></i> Boulangerie Royale</h1>
+                <div class="leaderboard-tabs">
+                    <button class="tab-btn active" onclick="switchLeaderTab('rich', this)"><i data-lucide="banknote"></i> Les Plus Riches</button>
+                    <button class="tab-btn" onclick="switchLeaderTab('week', this)"><i data-lucide="flame"></i> Top Semaine</button>
+                    <button class="tab-btn" onclick="switchLeaderTab('month', this)"><i data-lucide="trending-up"></i> Top Mois</button>
+                    <button class="tab-btn" onclick="switchLeaderTab('precision', this)"><i data-lucide="target"></i> Précision</button>
+                    <button class="tab-btn" onclick="switchLeaderTab('creators', this)"><i data-lucide="hammer"></i> Créateurs</button>
+                    <button class="tab-btn" onclick="switchLeaderTab('rookies', this)"><i data-lucide="sprout"></i> Rookies</button>
+                    <button class="tab-btn" onclick="switchLeaderTab('whales', this)"><i data-lucide="fish"></i> Baleines</button>
+                </div>
+                <div class="leaderboard-podium" id="leaderboardPodium"></div>
+                <div class="leaderboard-table" id="leaderboardTable"></div>
+                <div class="hall-of-fame">
+                    <h2><i data-lucide="medal"></i> Hall of Fame</h2>
+                    <div class="hof-grid" id="hofGrid"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- PROFILE PAGE -->
+        <div class="page" id="profilePage">
+            <div class="profile-layout" id="profileContent"></div>
+        </div>
+    </main>
+
+    <!-- SEND MODAL -->
+    <div class="modal-overlay" id="sendModal">
+        <div class="modal">
+            <button class="modal-close" onclick="closeModal('sendModal')">×</button>
+            <div class="modal-header">
+                <i data-lucide="send" style="width: 48px; height: 48px; color: var(--accent-blue); margin-bottom: 16px;"></i>
+                <h2>Envoyer des PLC</h2>
+                <p>Transférez des PolyCoins à un autre boulanger</p>
+            </div>
+            <form onsubmit="handleSendMoney(event)">
+                <div class="form-group">
+                    <label>Email ou Pseudo du destinataire</label>
+                    <input type="text" id="sendEmail" required placeholder="ami@email.fr">
+                </div>
+                <div class="form-group">
+                    <label>Montant (PLC)</label>
+                    <div class="amount-input-wrapper" style="margin-bottom:0;">
+                        <img src="polyCoin.png" alt="PLC" class="amount-coin">
+                        <input type="number" id="sendAmount" required min="0.01" step="0.01" placeholder="10.00">
+                    </div>
+                </div>
+                <button type="submit" class="btn-primary btn-full">Envoyer les PLC</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- LOGIN MODAL -->
+    <div class="modal-overlay" id="loginModal">
+        <div class="modal">
+            <button class="modal-close" onclick="closeModal('loginModal')">×</button>
+            <div class="modal-header">
+                <img src="logo poylymarket.png" alt="PolyBaguette" class="modal-logo" style="width:auto; max-width: 100px;">
+                <h2>Se connecter</h2>
+                <p>Bienvenue dans la boulangerie !</p>
+            </div>
+            <form onsubmit="handleLogin(event)">
+                <div class="form-group">
+                    <label>Pseudo</label>
+                    <input type="text" id="loginUsername" required placeholder="Ton pseudo de boulanger">
+                </div>
+                <div class="form-group">
+                    <label>Mot de passe</label>
+                    <input type="password" id="loginPassword" required placeholder="••••••••">
+                </div>
+                <button type="submit" class="btn-primary btn-full">Entrer dans la boulangerie</button>
+            </form>
+            <p class="modal-footer-text">Pas encore inscrit ? <a onclick="closeModal('loginModal');openModal('registerModal')">S'inscrire</a></p>
+        </div>
+    </div>
+
+    <!-- REGISTER MODAL -->
+    <div class="modal-overlay" id="registerModal">
+        <div class="modal">
+            <button class="modal-close" onclick="closeModal('registerModal')">×</button>
+            <div class="modal-header">
+                <img src="logo poylymarket.png" alt="PolyBaguette" class="modal-logo" style="width:auto; max-width: 100px;">
+                <h2>S'inscrire</h2>
+                <p>Reçois <strong>100 PLC</strong> gratuits à l'inscription !</p>
+            </div>
+            <form onsubmit="handleRegister(event)">
+                <div class="form-group">
+                    <label>Pseudo</label>
+                    <input type="text" id="registerUsername" required placeholder="Choisis ton pseudo" minlength="3">
+                </div>
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="registerEmail" required placeholder="ton@email.fr">
+                </div>
+                <div class="form-group">
+                    <label>Mot de passe</label>
+                    <input type="password" id="registerPassword" required placeholder="••••••••" minlength="6">
+                </div>
+                <button type="submit" class="btn-primary btn-full">Créer mon compte</button>
+            </form>
+            <p class="modal-footer-text">Déjà inscrit ? <a onclick="closeModal('registerModal');openModal('loginModal')">Se connecter</a></p>
+        </div>
+    </div>
+
+    <!-- CREATE MARKET MODAL -->
+    <div class="modal-overlay" id="createMarketModal">
+        <div class="modal modal-lg">
+            <button class="modal-close" onclick="closeModal('createMarketModal')">×</button>
+            <div class="modal-header">
+                <i data-lucide="plus-circle" style="width: 48px; height: 48px; color: var(--text-primary); margin-bottom: 16px;"></i>
+                <h2>Ouvrir un Pétrin</h2>
+                <p>Crée un nouveau marché prédictif</p>
+            </div>
+            <form onsubmit="handleCreateMarket(event)">
+                <div class="form-group">
+                    <label>Question</label>
+                    <input type="text" id="cmQuestion" required placeholder="Ex: Mbappé au PSG en 2027 ?">
+                </div>
+                <div class="form-group">
+                    <label>Catégorie</label>
+                    <select id="cmCategory" required>
+                        <option value="politique">Politique</option>
+                        <option value="sport">Sports</option>
+                        <option value="crypto">Crypto</option>
+                        <option value="tech">Tech</option>
+                        <option value="culture">Culture</option>
+                        <option value="economie">Économie</option>
+                        <option value="finance">Finance</option>
+                        <option value="meteo">Météo</option>
+                        <option value="geo">Géopolitique</option>
+                        <option value="people">People</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Date de résolution</label>
+                        <input type="date" id="cmEndDate" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Liquidité initiale (PLC)</label>
+                        <input type="number" id="cmLiquidity" min="1" value="10" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Source de résolution</label>
+                    <input type="text" id="cmSource" placeholder="Ex: INSEE, LFP, Reuters...">
+                </div>
+                <div class="form-group">
+                    <label>Description</label>
+                    <textarea id="cmDescription" rows="3" placeholder="Détails du marché..."></textarea>
+                </div>
+                <button type="submit" class="btn-primary btn-full">Ouvrir le Pétrin</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- TOAST NOTIFICATION -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- FAB - Create Market -->
+    <button class="fab" id="fabCreate" onclick="openModal('createMarketModal')" style="display:none" title="Ouvrir un Pétrin">
+        <i data-lucide="plus"></i>
+    </button>
+
+    <script src="data.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
