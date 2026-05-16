@@ -38,6 +38,74 @@ document.addEventListener('DOMContentLoaded', () => {
     lucide.createIcons();
 });
 
+// Google Auth Initialization
+window.onload = function () {
+    google.accounts.id.initialize({
+      client_id: "736237428802-lub0be3mmmctafqjv0bp12fr9ho40uv0.apps.googleusercontent.com",
+      callback: handleCredentialResponse
+    });
+    
+    const renderOptions = { theme: "filled_black", size: "large", width: 330 };
+    
+    const loginBtn = document.getElementById("googleBtnLogin");
+    if (loginBtn) {
+        google.accounts.id.renderButton(loginBtn, renderOptions);
+    }
+    
+    const registerBtn = document.getElementById("googleBtnRegister");
+    if (registerBtn) {
+        google.accounts.id.renderButton(registerBtn, renderOptions);
+    }
+};
+
+function decodeJwtResponse(token) {
+    let base64Url = token.split('.')[1];
+    let base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    let jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+
+    return JSON.parse(jsonPayload);
+}
+
+function handleCredentialResponse(response) {
+    const payload = decodeJwtResponse(response.credential);
+    
+    // Check if user exists (we use their Google name as username)
+    let savedUser = localStorage.getItem('polyUser');
+    if (savedUser) {
+        savedUser = JSON.parse(savedUser);
+        if (savedUser.email === payload.email) {
+            state.user = savedUser;
+            showToast(`Bon retour via Google, ${payload.given_name || payload.name} !`, 'success');
+        } else {
+            // New user via Google overriding current saved user
+            createNewGoogleUser(payload);
+        }
+    } else {
+        createNewGoogleUser(payload);
+    }
+    
+    state.isLoggedIn = true;
+    closeModal('loginModal');
+    closeModal('registerModal');
+    updateAuthUI();
+}
+
+function createNewGoogleUser(payload) {
+    state.user = {
+        username: payload.given_name || payload.name.split(' ')[0],
+        email: payload.email,
+        picture: payload.picture,
+        balance: 100, // 100 PLC offerts
+        positions: [],
+        trades: 0,
+        joined: new Date().toISOString()
+    };
+    localStorage.setItem('polyUser', JSON.stringify(state.user));
+    showToast(`Bienvenue ${state.user.username} ! 100 PLC offerts`, 'success');
+}
+
 // Ticker
 function initTicker() {
     const tickerContent = document.getElementById('tickerContent');
@@ -136,7 +204,13 @@ function updateAuthUI() {
         document.getElementById('authButtons').style.display = 'none';
         document.getElementById('walletDisplay').style.display = 'block';
         document.getElementById('userAvatar').style.display = 'flex';
-        document.getElementById('userAvatarLetter').innerText = state.user.username.charAt(0).toUpperCase();
+        
+        if (state.user.picture) {
+            document.getElementById('userAvatar').innerHTML = `<img src="${state.user.picture}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
+        } else {
+            document.getElementById('userAvatar').innerHTML = `<span id="userAvatarLetter">${state.user.username.charAt(0).toUpperCase()}</span>`;
+        }
+        
         document.getElementById('fabCreate').style.display = 'flex';
         updateWalletBalances();
     } else {
@@ -551,7 +625,10 @@ function renderProfile() {
     
     content.innerHTML = `
         <div class="profile-header">
-            <div class="profile-avatar-large">${state.user.username[0].toUpperCase()}</div>
+            ${state.user.picture 
+                ? `<img src="${state.user.picture}" class="profile-avatar-large" style="object-fit: cover;">`
+                : `<div class="profile-avatar-large">${state.user.username[0].toUpperCase()}</div>`
+            }
             <div class="profile-info">
                 <h1>${state.user.username}</h1>
                 <div class="profile-date">Dans la boulangerie depuis ${new Date(state.user.joined).toLocaleDateString()}</div>

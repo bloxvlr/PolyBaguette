@@ -9,6 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
     <!-- TICKER - Fil de la Mie -->
@@ -337,6 +338,12 @@
                 </div>
                 <button type="submit" class="btn-primary btn-full">Entrer dans la boulangerie</button>
             </form>
+            <div style="margin: 20px 0; display: flex; align-items: center; text-align: center; color: var(--text-muted);">
+                <hr style="flex-grow: 1; border: none; border-top: 1px solid var(--border-color);">
+                <span style="padding: 0 10px; font-size: 0.85rem;">OU</span>
+                <hr style="flex-grow: 1; border: none; border-top: 1px solid var(--border-color);">
+            </div>
+            <div id="googleBtnLogin" style="display: flex; justify-content: center; margin-bottom: 16px;"></div>
             <p class="modal-footer-text">Pas encore inscrit ? <a onclick="closeModal('loginModal');openModal('registerModal')">S'inscrire</a></p>
         </div>
     </div>
@@ -365,6 +372,12 @@
                 </div>
                 <button type="submit" class="btn-primary btn-full">Créer mon compte</button>
             </form>
+            <div style="margin: 20px 0; display: flex; align-items: center; text-align: center; color: var(--text-muted);">
+                <hr style="flex-grow: 1; border: none; border-top: 1px solid var(--border-color);">
+                <span style="padding: 0 10px; font-size: 0.85rem;">OU</span>
+                <hr style="flex-grow: 1; border: none; border-top: 1px solid var(--border-color);">
+            </div>
+            <div id="googleBtnRegister" style="display: flex; justify-content: center; margin-bottom: 16px;"></div>
             <p class="modal-footer-text">Déjà inscrit ? <a onclick="closeModal('registerModal');openModal('loginModal')">Se connecter</a></p>
         </div>
     </div>
