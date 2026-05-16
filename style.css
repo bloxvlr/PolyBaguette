@@ -612,17 +612,178 @@ a:hover {
 .fab { position: fixed; bottom: 32px; right: 32px; width: 56px; height: 56px; border-radius: 50%; background: var(--accent-blue); color: white; border: none; box-shadow: 0 4px 12px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: transform 0.2s; z-index: 900; }
 .fab:hover { transform: scale(1.05); }
 
-/* Responsive */
+/* ===== RESPONSIVE : TABLETTE ===== */
 @media (max-width: 1024px) {
     .home-layout { flex-direction: column; }
-    .home-right { width: 100%; display: flex; gap: 32px; }
-    .sidebar-section { flex: 1; }
+    .home-right { width: 100%; display: flex; gap: 24px; flex-wrap: wrap; }
+    .sidebar-section { flex: 1; min-width: 280px; }
     .market-detail-layout { flex-direction: column; }
-    .market-detail-right { width: 100%; }
-}
-@media (max-width: 768px) {
-    .header-center { display: none; }
-    .header-left, .header-right { width: 50%; }
+    .market-detail-right { width: 100%; position: static; }
+    .trading-panel { position: static; }
     .portfolio-summary { grid-template-columns: 1fr 1fr; }
-    .pos-stats { flex-direction: column; gap: 12px; align-items: flex-end; }
+    .profile-stats-grid { grid-template-columns: 1fr 1fr; }
 }
+
+/* ===== RESPONSIVE : MOBILE (≤768px) ===== */
+@media (max-width: 768px) {
+
+    /* --- HEADER --- */
+    .header {
+        padding: 10px 16px;
+        gap: 10px;
+    }
+    .header-left { width: auto; flex: 1; }
+    .header-center { display: none; } /* Barre de recherche masquée */
+    .header-right {
+        width: auto;
+        gap: 10px;
+    }
+    /* Masquer les liens nav texte, garder seulement les icônes essentielles */
+    .header-nav .nav-link span,
+    .header-nav .nav-link svg ~ span {
+        display: none;
+    }
+    .header-nav {
+        gap: 14px;
+    }
+    .logo-text { font-size: 1rem; }
+    .wallet-label { display: none; }
+    .wallet-btn { padding: 6px 10px; gap: 6px; font-size: 0.9rem; }
+
+    /* --- CONTENU PRINCIPAL --- */
+    .main-content { padding: 16px; }
+
+    /* --- BARRE DE CATÉGORIES --- */
+    .category-bar { padding: 0 12px; }
+    .category-scroll { gap: 12px; padding: 10px 0; }
+    .cat-btn { font-size: 0.85rem; }
+
+    /* --- PAGE ACCUEIL : FEATURED MARKET --- */
+    .featured-market { padding: 16px; margin-bottom: 20px; }
+    .fm-header { gap: 12px; margin-bottom: 16px; }
+    .fm-icon { width: 36px; height: 36px; }
+    .fm-title { font-size: 1.1rem; }
+    .fm-stats { font-size: 0.8rem; gap: 10px; flex-wrap: wrap; }
+    .fm-outcomes { gap: 8px; margin-bottom: 16px; }
+    .fm-outcome-name { width: 60px; font-size: 0.85rem; }
+    .fm-outcome-prob { font-size: 0.9rem; }
+
+    /* --- PAGE ACCUEIL : GRILLE DES MARCHÉS --- */
+    .section-header { margin-bottom: 14px; }
+    .section-header h2 { font-size: 1rem; }
+    .markets-grid {
+        grid-template-columns: 1fr; /* 1 colonne sur mobile */
+        gap: 12px;
+    }
+    .market-card { padding: 14px; }
+    .mc-title { font-size: 0.95rem; }
+
+    /* --- PAGE ACCUEIL : SIDEBAR (empilée verticalement) --- */
+    .home-right {
+        flex-direction: column;
+        gap: 0;
+    }
+    .sidebar-section { min-width: unset; width: 100%; margin-bottom: 24px; }
+    .sidebar-header h3 { font-size: 0.95rem; }
+
+    /* --- PAGE DÉTAIL MARCHÉ --- */
+    .market-detail-layout { flex-direction: column; gap: 20px; }
+    .market-detail-right { width: 100%; }
+
+    /* Bouton retour + breadcrumb */
+    .market-breadcrumb { font-size: 0.8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .md-icon { width: 44px; height: 44px; border-radius: 8px; }
+    .md-title { font-size: 1.2rem; }
+    .md-stats { font-size: 0.82rem; gap: 10px; flex-wrap: wrap; }
+
+    /* Outcomes dans la fiche produit */
+    .md-outcome-row {
+        padding: 12px;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    .md-outcome-left { width: 100%; }
+    .md-outcome-name { font-size: 1rem; }
+    .md-outcome-center { font-size: 1.3rem; width: auto; }
+    .md-outcome-right { width: 100%; justify-content: flex-end; }
+    .btn-buy-yes, .btn-buy-no { padding: 10px 16px; font-size: 0.9rem; width: auto; flex: 1; }
+
+    /* Graphique */
+    .market-chart-container { padding: 12px; }
+
+    /* Panel de trading */
+    .trading-panel { padding: 16px; }
+    .trading-choices { flex-direction: column; gap: 8px; }
+    .choice-btn { padding: 12px; font-size: 1rem; }
+    .amount-shortcuts button { font-size: 0.78rem; padding: 5px 4px; }
+    .amount-input-wrapper input { font-size: 1rem; padding: 12px 12px 12px 40px; }
+
+    /* --- PORTFOLIO --- */
+    .portfolio-summary { grid-template-columns: 1fr 1fr; gap: 12px; }
+    .portfolio-value { font-size: 1.4rem; }
+    .portfolio-header-section h1 { font-size: 1.5rem; }
+
+    /* Position card : empilée */
+    .position-card {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 14px;
+    }
+    .pos-market { width: 100%; }
+    .pos-stats { flex-direction: row; flex-wrap: wrap; gap: 16px; }
+    .pos-stat-col { flex: 1; min-width: 80px; }
+
+    /* --- CLASSEMENT --- */
+    .lb-score { width: 100px; font-size: 0.95rem; }
+    .lb-user { font-size: 0.95rem; }
+    .lb-rank { width: 40px; font-size: 1rem; }
+
+    /* --- PROFIL --- */
+    .profile-header {
+        flex-direction: column;
+        text-align: center;
+        padding: 20px 16px;
+        gap: 16px;
+    }
+    .profile-info h1 { font-size: 1.5rem; }
+    .profile-stats-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+    }
+    .portfolio-card { padding: 14px; }
+
+    /* --- MODALS --- */
+    .modal-overlay { align-items: flex-end; }
+    .modal {
+        border-radius: 20px 20px 0 0;
+        max-width: 100%;
+        padding: 24px 20px;
+        max-height: 90vh;
+        overflow-y: auto;
+    }
+    .modal-lg { max-width: 100%; }
+
+    /* --- TOASTS --- */
+    .toast-container { right: 12px; left: 12px; bottom: 80px; }
+    .toast { min-width: unset; width: 100%; }
+
+    /* --- FAB --- */
+    .fab { bottom: 20px; right: 20px; width: 50px; height: 50px; }
+}
+
+/* ===== RESPONSIVE : TRÈS PETIT (≤420px) ===== */
+@media (max-width: 420px) {
+    .header { padding: 8px 12px; }
+    .logo-text { display: none; } /* Seulement l'icône sur très petit écran */
+    .main-content { padding: 12px; }
+    .featured-market { padding: 12px; }
+    .fm-title { font-size: 1rem; }
+    .profile-stats-grid { grid-template-columns: 1fr; }
+    .portfolio-summary { grid-template-columns: 1fr; }
+    .market-tabs { gap: 12px; overflow-x: auto; }
+    .tab-btn { font-size: 0.85rem; white-space: nowrap; }
+    .md-title { font-size: 1.05rem; }
+    .btn-buy-yes, .btn-buy-no { font-size: 0.82rem; }
+}
+

@@ -9,8 +9,10 @@ let state = {
     session: null,
     markets: [],
     currentMarket: null,
+    marketPositions: [],
     tradeMode: 'buy', 
     tradeAmount: 0,
+    chartTimeframe: 'all',
     selectedOutcome: null,
     activeCategory: 'all'
 };
@@ -586,9 +588,14 @@ async function openMarketDetail(id) {
         <div class="tp-title">${market.title}</div>
     `;
     
+    state.chartTimeframe = 'all';
+    document.querySelectorAll('.tf-btn').forEach(b => {
+        if(b.innerText.toLowerCase().includes('tout')) b.classList.add('active'); else b.classList.remove('active');
+    });
+    
     renderMarketOutcomes(market);
     renderTradingChoices(market);
-    drawRealChart(market, state.marketPositions);
+    drawRealChart(market, state.marketPositions, 'all');
     renderMarketHistory();
     
     document.getElementById('marketTabContent').innerHTML = `
@@ -1429,7 +1436,16 @@ function initTicker() {
     }
 }
 
-function drawRealChart(market, positions) {
+function changeChartTimeframe(tf, btn) {
+    state.chartTimeframe = tf;
+    document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
+    if(btn) btn.classList.add('active');
+    if(state.currentMarket && state.marketPositions) {
+        drawRealChart(state.currentMarket, state.marketPositions, tf);
+    }
+}
+
+function drawRealChart(market, positions, timeframe = 'all') {
     const canvas = document.getElementById('marketChart');
     if(!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -1437,30 +1453,51 @@ function drawRealChart(market, positions) {
     
     const out1 = market.outcomes && market.outcomes[0];
     if(!out1) return;
+
+    const now = Date.now();
+    let minTime;
+    if (timeframe === 'all') {
+        minTime = new Date(market.created_at).getTime();
+    } else {
+        minTime = now - (parseInt(timeframe) * 24 * 60 * 60 * 1000);
+    }
     
     let w1 = (market.liquidity || 10) / market.outcomes.length;
     let wTotal = (market.liquidity || 10);
     
-    let points = [{ x: new Date(market.created_at).getTime(), y: 0.5 }];
+    let history = [{ x: new Date(market.created_at).getTime(), y: w1 / wTotal }];
     
     positions.forEach(pos => {
         if(pos.outcome_id === out1.id) {
             w1 += pos.invested_amount;
         }
         wTotal += pos.invested_amount;
-        points.push({ x: new Date(pos.created_at).getTime(), y: w1 / wTotal });
+        history.push({ x: new Date(pos.created_at).getTime(), y: w1 / wTotal });
     });
     
-    points.push({ x: Date.now(), y: w1 / wTotal });
+    history.push({ x: now, y: w1 / wTotal });
     
-    const minTime = points[0].x;
-    const maxTime = points[points.length-1].x;
+    // Filtrage par période
+    let filteredPoints = history.filter(p => p.x >= minTime);
+    
+    if (filteredPoints.length === 0 || filteredPoints[0].x > minTime) {
+        const lastBefore = history.filter(p => p.x < minTime).pop();
+        if (lastBefore) {
+            filteredPoints.unshift({ x: minTime, y: lastBefore.y });
+        } else {
+            minTime = new Date(market.created_at).getTime();
+            filteredPoints = history;
+        }
+    }
+    
+    const maxTime = now;
     const timeSpan = maxTime - minTime || 1;
     
     ctx.beginPath();
-    ctx.moveTo(0, canvas.height * (1 - points[0].y));
+    const startY = canvas.height * (1 - filteredPoints[0].y);
+    ctx.moveTo(0, startY);
     
-    points.forEach(p => {
+    filteredPoints.forEach(p => {
         const x = ((p.x - minTime) / timeSpan) * canvas.width;
         const y = canvas.height * (1 - p.y);
         ctx.lineTo(x, y);
@@ -1471,6 +1508,7 @@ function drawRealChart(market, positions) {
     ctx.lineJoin = 'round';
     ctx.stroke();
     
+    // Remplissage gradient
     ctx.lineTo(canvas.width, canvas.height);
     ctx.lineTo(0, canvas.height);
     const grad = ctx.createLinearGradient(0,0,0,canvas.height);

@@ -166,6 +166,13 @@
                     </div>
                     <div class="market-detail-header" id="marketDetailHeader"></div>
                     <div class="market-chart-container">
+                        <div class="chart-timeframes" style="display:flex; justify-content:flex-start; gap:8px; margin-bottom:12px;">
+                            <button class="tf-btn active" onclick="changeChartTimeframe('all', this)">Tout</button>
+                            <button class="tf-btn" onclick="changeChartTimeframe('365', this)">1 an</button>
+                            <button class="tf-btn" onclick="changeChartTimeframe('30', this)">30 j</button>
+                            <button class="tf-btn" onclick="changeChartTimeframe('7', this)">7 j</button>
+                            <button class="tf-btn" onclick="changeChartTimeframe('1', this)">24h</button>
+                        </div>
                         <canvas id="marketChart" width="800" height="300"></canvas>
                     </div>
                     <div class="market-outcomes-list" id="marketOutcomesList"></div>
