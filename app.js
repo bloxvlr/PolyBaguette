@@ -258,7 +258,7 @@ async function loadMarkets() {
     if(loadingEl) loadingEl.style.display = 'block';
     
     try {
-        // Fetch markets and their outcomes
+        // Fetch markets + outcomes en une seule requête
         const { data: markets, error } = await supabaseClient
             .from('markets')
             .select('*, outcomes(*)')
@@ -268,7 +268,6 @@ async function loadMarkets() {
         
         if (error) {
             console.error("Erreur DB:", error);
-            showToast("Affichage des marchés de démonstration (la base de données est vide ou inaccessible).", "error");
             state.markets = getFallbackMarkets();
             renderMarkets(state.markets);
             return;
@@ -276,12 +275,49 @@ async function loadMarkets() {
         
         state.markets = markets || [];
         
-        // Si la base est vide, on ajoute des faux marchés localement pour la démo
         if (state.markets.length === 0) {
             state.markets = getFallbackMarkets();
+            renderMarkets(state.markets);
+            return;
+        }
+        
+        // --- Enrichissement en direct : récupère TOUTES les positions en 1 requête ---
+        const { data: allPositions } = await supabaseClient
+            .from('positions')
+            .select('market_id, outcome_id, invested_amount, shares');
+        
+        if (allPositions && allPositions.length > 0) {
+            // Grouper les positions par market_id
+            const posByMarket = {};
+            allPositions.forEach(p => {
+                if (!posByMarket[p.market_id]) posByMarket[p.market_id] = [];
+                posByMarket[p.market_id].push(p);
+            });
+            
+            // Pour chaque marché, recalculer probas et volume en direct
+            state.markets.forEach(market => {
+                const positions = posByMarket[market.id] || [];
+                if (!market.outcomes || market.outcomes.length === 0) return;
+                
+                // Volume réel = somme des achats uniquement
+                market.volume = positions
+                    .filter(p => p.invested_amount > 0)
+                    .reduce((s, p) => s + p.invested_amount, 0);
+                
+                // Probas live via AMM
+                if (positions.length > 0) {
+                    const liveProbs = computeLiveProbs(market, positions);
+                    market.outcomes.forEach(o => {
+                        if (liveProbs[o.id] !== undefined) {
+                            o.probability = liveProbs[o.id];
+                        }
+                    });
+                }
+            });
         }
         
         renderMarkets(state.markets);
+        
     } catch (e) {
         console.error("Fetch error:", e);
         if(loadingEl) loadingEl.style.display = 'none';
@@ -500,6 +536,20 @@ async function openMarketDetail(id) {
     }
     state.marketPositions = positions;
     
+    // --- CALCUL EN DIRECT DES PROBABILITES depuis les positions ---
+    if (market.outcomes && market.outcomes.length > 0 && positions.length > 0) {
+        const liveProbs = computeLiveProbs(market, positions);
+        market.outcomes.forEach(o => {
+            if (liveProbs[o.id] !== undefined) {
+                o.probability = liveProbs[o.id];
+            }
+        });
+    }
+    
+    // Calcul du volume réel depuis les positions
+    const realVolume = positions.filter(p => p.invested_amount > 0).reduce((s, p) => s + p.invested_amount, 0);
+    market.volume = realVolume;
+    
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.getElementById('marketPage').classList.add('active');
     
@@ -512,7 +562,7 @@ async function openMarketDetail(id) {
                 <div>
                     <div class="md-title">${market.title}</div>
                     <div class="md-stats">
-                        <span id="marketVolumeUI"><i data-lucide="award" class="icon-sm"></i> ${formatVol(market.volume || 0)} Vol.</span>
+                        <span id="marketVolumeUI"><i data-lucide="award" class="icon-sm"></i> ${formatVol(realVolume)} Vol.</span>
                         <span><i data-lucide="calendar" class="icon-sm"></i> ${new Date(market.end_date).toLocaleDateString()}</span>
                     </div>
                 </div>
@@ -541,6 +591,47 @@ async function openMarketDetail(id) {
         <p>${market.description}</p>
     `;
     setTimeout(() => lucide.createIcons(), 50);
+}
+
+/**
+ * Calcule les probabilités AMM en direct depuis les positions.
+ * Formule : prob(i) = (L/n + investissements_nets(i)) / (L + total_investissements_nets)
+ * @param {Object} market - le marché avec ses outcomes et sa liquidité
+ * @param {Array} positions - toutes les positions de ce marché
+ * @returns {Object} map outcomeId -> probability (0-100)
+ */
+function computeLiveProbs(market, positions) {
+    const L = market.liquidity || 10;
+    const n = market.outcomes.length;
+    
+    // Calcul des investissements nets par outcome (achats - ventes)
+    const netByOutcome = {};
+    market.outcomes.forEach(o => netByOutcome[o.id] = 0);
+    
+    positions.forEach(p => {
+        if (netByOutcome[p.outcome_id] !== undefined) {
+            netByOutcome[p.outcome_id] += p.invested_amount; // positif si achat, négatif si vente
+        }
+    });
+    
+    // Poids de chaque outcome
+    const weights = {};
+    market.outcomes.forEach(o => {
+        weights[o.id] = Math.max(0.01, (L / n) + netByOutcome[o.id]);
+    });
+    
+    // Poids total
+    const totalWeight = Object.values(weights).reduce((s, w) => s + w, 0);
+    
+    // Probabilités (clée entre 1% et 99%)
+    const probs = {};
+    market.outcomes.forEach(o => {
+        let p = (weights[o.id] / totalWeight) * 100;
+        p = Math.max(1, Math.min(99, p));
+        probs[o.id] = parseFloat(p.toFixed(1));
+    });
+    
+    return probs;
 }
 
 function renderMarketHistory() {
