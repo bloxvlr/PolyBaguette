@@ -85,8 +85,14 @@
                         </div>
                     </div>
                     <div class="wallet-actions-bottom">
-                        <button class="btn-wallet-action" onclick="navigateTo('profile')"><i data-lucide="user"></i> Mon Profil</button>
-                        <button class="btn-wallet-action btn-danger" onclick="logout()"><i data-lucide="log-out"></i> Déconnexion</button>
+                        <button class="btn-wallet-action" onclick="navigateTo('profile'); toggleWalletDropdown()"><i data-lucide="user"></i> Mon Profil</button>
+                    </div>
+                    
+                    <div style="padding: 16px; border-top: 1px solid var(--border-color); margin-top: 8px;">
+                        <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 12px;">Transferts récents</div>
+                        <div id="walletTransactionsList" style="max-height: 150px; overflow-y: auto;">
+                            <div style="font-size: 0.85rem; color: var(--text-muted); text-align: center;">Chargement...</div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -154,10 +160,17 @@
                         <canvas id="marketChart" width="800" height="300"></canvas>
                     </div>
                     <div class="market-outcomes-list" id="marketOutcomesList"></div>
-                    <div class="market-tabs">
-                        <button class="tab-btn active" onclick="switchMarketTab('about', this)">À propos</button>
+                    
+                    <div class="market-tabs" style="margin-top: 24px;">
+                        <div id="marketTabContent"></div>
                     </div>
-                    <div class="market-tab-content active" id="marketTabContent"></div>
+                    
+                    <div style="margin-top: 32px;">
+                        <h3 style="margin-bottom: 16px; display: flex; align-items: center; gap: 8px;"><i data-lucide="activity"></i> Historique en direct</h3>
+                        <div id="marketHistoryContainer" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; padding: 16px; max-height: 400px; overflow-y: auto;">
+                            <div class="text-muted">Chargement de l'historique...</div>
+                        </div>
+                    </div>
                 </div>
                 <div class="market-detail-right">
                     <div class="trading-panel" id="tradingPanel">

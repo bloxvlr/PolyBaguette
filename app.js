@@ -151,6 +151,47 @@ function updateWalletBalances() {
     document.getElementById('walletDropdownEuro').innerText = `$ ${usdEquivalent} USD`;
     document.getElementById('walletItemBalance').innerText = formatPC(bal);
     document.getElementById('walletItemEur').innerText = `$ ${usdEquivalent}`;
+    
+    loadWalletTransactions();
+}
+
+async function loadWalletTransactions() {
+    if(!state.user || !supabaseClient) return;
+    
+    let html = '';
+    try {
+        const { data: txs } = await supabaseClient.from('transactions')
+            .select('*')
+            // Cherche par email si possible, selon comment la table est construite
+            .or(`sender_email.eq.${state.user.email},receiver_email.eq.${state.user.email}`)
+            .order('created_at', { ascending: false })
+            .limit(5);
+            
+        if (txs && txs.length > 0) {
+            html += txs.map(t => {
+                const isSender = t.sender_email === state.user.email;
+                const color = isSender ? 'var(--accent-red)' : 'var(--accent-green)';
+                const sign = isSender ? '-' : '+';
+                const label = isSender ? 'Envoyé' : 'Reçu';
+                return `
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px; font-size: 0.85rem;">
+                        <div style="color: var(--text-muted);"><i data-lucide="${isSender ? 'arrow-up-right' : 'arrow-down-left'}" style="width:14px; height:14px; vertical-align:middle; margin-right:4px;"></i>${label}</div>
+                        <div style="color: ${color}; font-weight: 600;">${sign}${t.amount} PLC</div>
+                    </div>
+                `;
+            }).join('');
+        } else {
+            html = '<div style="font-size: 0.85rem; color: var(--text-muted); text-align: center;">Aucun transfert récent</div>';
+        }
+    } catch(e) {
+        html = '<div style="font-size: 0.85rem; color: var(--text-muted); text-align: center;">Aucun transfert récent</div>';
+    }
+    
+    const list = document.getElementById('walletTransactionsList');
+    if(list) {
+        list.innerHTML = html;
+        setTimeout(() => lucide.createIcons(), 10);
+    }
 }
 
 function toggleWalletDropdown() {
@@ -395,12 +436,52 @@ async function openMarketDetail(id) {
     renderMarketOutcomes(market);
     renderTradingChoices(market);
     drawRealChart(market, state.marketPositions);
+    renderMarketHistory();
     
     document.getElementById('marketTabContent').innerHTML = `
         <h3>Règles du marché</h3>
         <p>${market.description}</p>
     `;
     setTimeout(() => lucide.createIcons(), 50);
+}
+
+function renderMarketHistory() {
+    const container = document.getElementById('marketHistoryContainer');
+    if(!container) return;
+    
+    if(!state.marketPositions || state.marketPositions.length === 0) {
+        container.innerHTML = '<div class="text-muted">Aucune transaction pour ce marché.</div>';
+        return;
+    }
+    
+    const userIds = [...new Set(state.marketPositions.map(p => p.user_id))];
+    supabaseClient.from('profiles').select('id, username').in('id', userIds).then(({data: profiles}) => {
+        const userMap = {};
+        if(profiles) profiles.forEach(p => userMap[p.id] = p.username);
+        
+        const sorted = [...state.marketPositions].reverse();
+        
+        container.innerHTML = sorted.map(p => {
+            const isBuy = p.shares > 0;
+            const outcomeName = state.currentMarket.outcomes.find(o => o.id === p.outcome_id)?.name || 'Issue';
+            const action = isBuy ? 'Achat' : 'Vente';
+            const color = isBuy ? 'var(--accent-green)' : 'var(--accent-red)';
+            const username = userMap[p.user_id] || 'Boulanger Anonyme';
+            
+            return `
+                <div style="display:flex; justify-content:space-between; align-items:center; padding: 12px 0; border-bottom: 1px solid var(--border-color);">
+                    <div style="display:flex; flex-direction:column; gap:4px;">
+                        <span style="font-weight: 600; font-size: 0.9rem;">${username}</span>
+                        <span style="font-size: 0.8rem; color: var(--text-muted);">${new Date(p.created_at).toLocaleString()}</span>
+                    </div>
+                    <div style="text-align: right; display:flex; flex-direction:column; gap:4px;">
+                        <span style="color: ${color}; font-weight: 600; font-size: 0.9rem;">${action} ${Math.abs(p.shares).toFixed(2)} parts</span>
+                        <span style="font-size: 0.8rem; color: var(--text-muted);">${Math.abs(p.invested_amount).toFixed(2)} PLC (${outcomeName})</span>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    });
 }
 
 function renderMarketOutcomes(market) {
