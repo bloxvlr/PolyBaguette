@@ -9,6 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -47,7 +48,7 @@
             </nav>
             <!-- Auth buttons (logged out) -->
             <div class="auth-buttons" id="authButtons">
-                <button class="btn-primary" onclick="loginWithGoogle()"><i data-lucide="log-in" style="margin-right: 8px;"></i>Se connecter</button>
+                <button class="btn-primary" onclick="openModal('loginModal')"><i data-lucide="log-in" style="margin-right: 8px;"></i>Se connecter</button>
             </div>
             <!-- Wallet (logged in) -->
             <div class="wallet-display" id="walletDisplay" style="display:none">
@@ -242,6 +243,19 @@
             <div class="profile-layout" id="profileContent"></div>
         </div>
     </main>
+
+    <!-- LOGIN MODAL -->
+    <div class="modal-overlay" id="loginModal">
+        <div class="modal">
+            <button class="modal-close" onclick="closeModal('loginModal')">×</button>
+            <div class="modal-header">
+                <i data-lucide="log-in" style="width: 48px; height: 48px; color: var(--text-primary); margin-bottom: 16px;"></i>
+                <h2>Bienvenue sur PolyBaguette</h2>
+                <p>Connecte-toi avec Google pour commencer à trader et recevoir tes 100 PLC offerts !</p>
+            </div>
+            <div id="googleBtnLogin" style="display: flex; justify-content: center; margin: 20px 0;"></div>
+        </div>
+    </div>
 
     <!-- SEND MODAL -->
     <div class="modal-overlay" id="sendModal">

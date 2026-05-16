@@ -66,14 +66,36 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 // --- AUTH & PROFILES ---
 
-async function loginWithGoogle() {
-    const { error } = await supabaseClient.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-            redirectTo: window.location.origin
+window.onload = function () {
+    if (window.google) {
+        google.accounts.id.initialize({
+            client_id: "736237428802-lub0be3mmmctafqjv0bp12fr9ho40uv0.apps.googleusercontent.com",
+            callback: handleCredentialResponse
+        });
+        
+        const loginBtn = document.getElementById("googleBtnLogin");
+        if (loginBtn) {
+            google.accounts.id.renderButton(loginBtn, { theme: "filled_black", size: "large", width: 330 });
         }
+    }
+};
+
+async function handleCredentialResponse(response) {
+    if (!supabaseClient) return showToast("Erreur de base de données", "error");
+    
+    // Authenticate with Supabase using the Google ID Token
+    const { data, error } = await supabaseClient.auth.signInWithIdToken({
+        provider: 'google',
+        token: response.credential,
     });
-    if (error) showToast("Erreur de connexion", "error");
+    
+    if (error) {
+        showToast("Erreur d'authentification : " + error.message, "error");
+        return;
+    }
+    
+    closeModal('loginModal');
+    showToast("Connexion réussie !", "success");
 }
 
 async function logout() {
