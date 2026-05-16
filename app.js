@@ -407,16 +407,22 @@ function renderMarkets(marketsData) {
                 </div>
             </div>
             <div style="display:flex; flex-direction:column; gap:12px;">
-                ${(featured.outcomes||[]).slice(0,3).map(o => `
+                ${(featured.outcomes||[]).slice(0,3).map(o => {
+                    const isBinary = o.name.toLowerCase() === 'oui' || o.name.toLowerCase() === 'non';
+                    return `
                     <div style="display:flex; align-items:center; justify-content:space-between;">
                         <span style="font-size:1rem; font-weight:500; color:var(--text-secondary);">${o.name}</span>
                         <div style="display:flex; align-items:center; gap:12px;">
                             <span style="font-size:1.1rem; font-weight:700;">${Math.round(o.probability)}%</span>
-                            <button style="background:rgba(39,174,96,0.15); color:#27ae60; border:none; border-radius:6px; padding:8px 16px; font-weight:600; cursor:pointer;">Oui.</button>
-                            <button style="background:rgba(235,87,87,0.15); color:#eb5757; border:none; border-radius:6px; padding:8px 16px; font-weight:600; cursor:pointer;">Non.</button>
+                            ${isBinary ? `
+                                <button onclick="event.stopPropagation(); selectOutcomeAndScroll('${o.id}', '${o.name}')" style="background:rgba(39,174,96,0.15); color:#27ae60; border:none; border-radius:6px; padding:8px 16px; font-weight:600; cursor:pointer;">Oui.</button>
+                                <button onclick="event.stopPropagation(); selectOutcomeAndScroll('${o.id}', '${o.name}')" style="background:rgba(235,87,87,0.15); color:#eb5757; border:none; border-radius:6px; padding:8px 16px; font-weight:600; cursor:pointer;">Non.</button>
+                            ` : `
+                                <button onclick="event.stopPropagation(); selectOutcomeAndScroll('${o.id}', '${o.name}')" style="background:var(--accent-blue); color:white; border:none; border-radius:6px; padding:8px 20px; font-weight:600; cursor:pointer;">Miser</button>
+                            `}
                         </div>
-                    </div>
-                `).join('')}
+                    </div>`;
+                }).join('')}
             </div>
         `;
         fmElement.onclick = () => openMarketDetail(featured.id);
@@ -461,19 +467,25 @@ function renderMarkets(marketsData) {
                             </div>
                         </div>
                     </div>
-                ` : m.outcomes.slice(0, 3).map((o, index) => `
+                ` : m.outcomes.slice(0, 3).map((o, index) => {
+                    const isBinary = o.name.toLowerCase() === 'oui' || o.name.toLowerCase() === 'non';
+                    return `
                     <div class="mc-outcome-row" style="display:flex;align-items:center;justify-content:space-between;">
                         <span style="color:var(--text-secondary);font-size:0.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px;font-weight:500;">${o.name}</span>
                         <div style="display:flex;align-items:center;gap:12px;">
                             ${(m.volume === 0 && index === 0) ? '<span style="background:var(--accent-blue);color:white;padding:2px 6px;border-radius:4px;font-size:0.7rem;font-weight:700;text-transform:uppercase;">Nouveau</span>' : ''}
                             <span style="font-weight:600;font-size:1rem;color:var(--text-primary);">${Math.round(o.probability)}%</span>
                             <div style="display:flex;gap:6px;">
-                                <button class="btn-mc-yes" style="background:rgba(39,174,96,0.15);color:#27ae60;border:1px solid transparent;border-radius:6px;padding:6px 12px;font-weight:600;font-size:0.85rem;cursor:pointer;transition:0.2s;">Oui.</button>
-                                <button class="btn-mc-no" style="background:rgba(235,87,87,0.15);color:#eb5757;border:1px solid transparent;border-radius:6px;padding:6px 12px;font-weight:600;font-size:0.85rem;cursor:pointer;transition:0.2s;">Non.</button>
+                                ${isBinary ? `
+                                    <button class="btn-mc-yes" onclick="event.stopPropagation(); selectOutcomeAndScroll('${o.id}', '${o.name}')" style="background:rgba(39,174,96,0.15);color:#27ae60;border:none;border-radius:6px;padding:6px 12px;font-weight:600;font-size:0.85rem;cursor:pointer;">Oui.</button>
+                                    <button class="btn-mc-no" onclick="event.stopPropagation(); selectOutcomeAndScroll('${o.id}', '${o.name}')" style="background:rgba(235,87,87,0.15);color:#eb5757;border:none;border-radius:6px;padding:6px 12px;font-weight:600;font-size:0.85rem;cursor:pointer;">Non.</button>
+                                ` : `
+                                    <button onclick="event.stopPropagation(); selectOutcomeAndScroll('${o.id}', '${o.name}')" style="background:var(--accent-blue);color:white;border:none;border-radius:6px;padding:6px 16px;font-weight:600;font-size:0.85rem;cursor:pointer;">Miser</button>
+                                `}
                             </div>
                         </div>
-                    </div>
-                `).join('')}
+                    </div>`;
+                }).join('')}
             </div>
             <div class="mc-footer" style="display:flex;justify-content:space-between;align-items:center;color:var(--text-muted);font-size:0.85rem;margin-top:auto;font-weight:500;">
                 <span>${formatVol(m.volume || 0)} Vol.</span>
@@ -933,6 +945,16 @@ async function handleCreateMarket(e) {
     btn.disabled = true;
     btn.innerText = "Création...";
     
+    // Récupérer les issues
+    const outcomesRaw = document.getElementById('cmOutcomes').value;
+    const outcomeNames = outcomesRaw.split('\n').map(s => s.trim()).filter(s => s !== '');
+    
+    if (outcomeNames.length < 2) {
+        btn.disabled = false;
+        btn.innerText = "Ouvrir le Marché";
+        return showToast("Il faut au moins 2 issues (ex: Oui et Non).", "error");
+    }
+    
     // Insert Market
     const { data: marketData, error: mError } = await supabaseClient.from('markets').insert({
         creator_id: state.user.id,
@@ -947,18 +969,24 @@ async function handleCreateMarket(e) {
     
     if (mError) {
         btn.disabled = false;
-        return showToast("Erreur de création", "error");
+        btn.innerText = "Ouvrir le Marché";
+        return showToast("Erreur de création : " + mError.message, "error");
     }
     
-    // Insert Outcomes (Oui / Non par défaut pour simplifier)
-    const { error: outError } = await supabaseClient.from('outcomes').insert([
-        { market_id: marketData.id, name: 'Oui', probability: 50, current_price: 0.5 },
-        { market_id: marketData.id, name: 'Non', probability: 50, current_price: 0.5 }
-    ]);
+    // Insert Outcomes
+    const initialProb = 100 / outcomeNames.length;
+    const outcomesToInsert = outcomeNames.map(name => ({
+        market_id: marketData.id,
+        name: name,
+        probability: initialProb,
+        current_price: initialProb / 100
+    }));
+    
+    const { error: outError } = await supabaseClient.from('outcomes').insert(outcomesToInsert);
     
     if (outError) {
         console.error(outError);
-        showToast("Marché créé, mais impossible d'ajouter les issues (Problème RLS).", "error");
+        showToast("Marché créé, mais impossible d'ajouter les issues.", "error");
     }
     
     // Deduct liquidity
