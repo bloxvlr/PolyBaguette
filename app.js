@@ -339,59 +339,40 @@ function renderMarkets(marketsData) {
     const grid = document.getElementById('marketsGrid');
     if (!grid) return;
     
+    const fmElement = document.getElementById('featuredMarket');
+    if (fmElement) fmElement.style.display = 'none'; // Hide featured market for uniform grid
+    
     if (filtered.length === 0) {
         grid.innerHTML = '<div style="grid-column: 1/-1; text-align:center; padding:40px; color:var(--text-muted)">Aucun marché trouvé dans cette catégorie.</div>';
         return;
     }
     
-    const featured = filtered[0]; // first market as featured
-    const fmElement = document.getElementById('featuredMarket');
-    if (fmElement && featured) {
-        fmElement.innerHTML = `
-            <div class="fm-header">
-                <img src="${featured.icon_url || 'https://picsum.photos/100'}" class="fm-icon">
-                <div>
-                    <div class="fm-title">${featured.title}</div>
-                    <div class="fm-stats">
-                        <span>${formatVol(featured.volume || 0)} Vol.</span>
-                        <span>Se termine le ${new Date(featured.end_date).toLocaleDateString()}</span>
+    grid.innerHTML = filtered.map(m => `
+        <div class="market-card" onclick="openMarketDetail('${m.id}')" style="display:flex; flex-direction:column; min-height: 200px;">
+            <div class="mc-header" style="display: flex; gap: 12px; align-items: flex-start; margin-bottom: 20px;">
+                <img src="${m.icon_url || 'https://picsum.photos/100'}" class="mc-icon" style="width: 36px; height: 36px; border-radius: 50%; object-fit: cover;">
+                <div class="mc-title" style="font-weight: 600; font-size: 1.05rem; line-height: 1.3; color: var(--text-primary);">${m.title}</div>
+            </div>
+            <div class="mc-outcomes" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 24px;">
+                ${(m.outcomes || []).slice(0, 3).map(o => `
+                    <div class="mc-outcome-row" style="display: flex; align-items: center; justify-content: space-between;">
+                        <span class="mc-outcome-name" style="color: var(--text-secondary); font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; font-weight: 500;">${o.name}</span>
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <span class="mc-outcome-prob" style="font-weight: 600; font-size: 1rem; color: var(--text-primary);">${Math.round(o.probability)}%</span>
+                            <div class="mc-outcome-actions" style="display: flex; gap: 6px;">
+                                <button class="btn-mc-yes" style="background: rgba(39, 174, 96, 0.15); color: #27ae60; border: 1px solid transparent; border-radius: 6px; padding: 6px 12px; font-weight: 600; font-size: 0.85rem; cursor: pointer; transition: 0.2s;">Oui.</button>
+                                <button class="btn-mc-no" style="background: rgba(235, 87, 87, 0.15); color: #eb5757; border: 1px solid transparent; border-radius: 6px; padding: 6px 12px; font-weight: 600; font-size: 0.85rem; cursor: pointer; transition: 0.2s;">Non.</button>
+                            </div>
+                        </div>
                     </div>
+                `).join('')}
+            </div>
+            <div class="mc-footer" style="display: flex; justify-content: space-between; align-items: center; color: var(--text-muted); font-size: 0.85rem; margin-top: auto; font-weight: 500;">
+                <span class="mc-volume">${formatVol(m.volume || 0)} Vol.</span>
+                <div class="mc-footer-icons" style="display: flex; gap: 12px; color: var(--text-muted);">
+                    <i data-lucide="gift" style="width: 18px; height: 18px;"></i>
+                    <i data-lucide="bookmark" style="width: 18px; height: 18px;"></i>
                 </div>
-            </div>
-            <div class="fm-outcomes">
-                ${(featured.outcomes || []).map(o => `
-                    <div class="fm-outcome">
-                        <span class="fm-outcome-name">${o.name}</span>
-                        <div class="fm-outcome-bar-container">
-                            <div class="fm-outcome-bar" style="width: ${o.probability}%"></div>
-                        </div>
-                        <span class="fm-outcome-prob">${o.probability}%</span>
-                    </div>
-                `).join('')}
-            </div>
-        `;
-        fmElement.onclick = () => openMarketDetail(featured.id);
-    }
-    
-    grid.innerHTML = filtered.slice(1).map(m => `
-        <div class="market-card" onclick="openMarketDetail('${m.id}')">
-            <div class="mc-header">
-                <img src="${m.icon_url || 'https://picsum.photos/100'}" class="mc-icon">
-                <div class="mc-title">${m.title}</div>
-            </div>
-            <div class="mc-outcomes">
-                ${(m.outcomes || []).slice(0, 2).map(o => `
-                    <div class="mc-outcome-row">
-                        <span class="mc-outcome-label">${o.name}</span>
-                        <div>
-                            <span class="mc-prob mr-2 ${o.name==='Oui' || o.name==='Up' ? 'text-green' : 'text-red'}">${o.probability}%</span>
-                        </div>
-                    </div>
-                `).join('')}
-            </div>
-            <div class="mc-footer">
-                <span>${formatVol(m.volume || 0)} Vol.</span>
-                <span>${new Date(m.end_date).toLocaleDateString()}</span>
             </div>
         </div>
     `).join('');
