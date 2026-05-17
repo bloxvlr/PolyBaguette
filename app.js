@@ -64,6 +64,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     await loadMarkets();
     await loadRecentTransactions();
+    
+    // Vérification périodique des gains de paris
+    setInterval(checkUnshownPayouts, 10000);
 });
 
 // --- AUTH & PROFILES ---
@@ -123,6 +126,7 @@ async function fetchUserProfile(userId) {
         state.user = data;
         state.isLoggedIn = true;
         updateAuthUI();
+        checkUnshownPayouts();
     }
 }
 
@@ -587,7 +591,7 @@ async function openMarketDetail(id) {
                 </div>
             </div>
             <div style="display:flex; gap:8px;">
-                ${state.user && state.user.id === market.creator_id ? 
+                ${(state.user && state.user.id === market.creator_id) || (state.session && state.session.user.email === 'the.furtive.guys@gmail.com') ? 
                     `<button class="btn-wallet-action btn-danger" onclick="deleteMarket('${market.id}')" style="padding: 6px 12px; font-size: 0.8rem;"><i data-lucide="trash-2"></i> Supprimer</button>` 
                     : ''}
                 <button class="btn-wallet-action" onclick="reportMarket('${market.id}')" style="padding: 6px 12px; font-size: 0.8rem; background: var(--bg-card); color: var(--text-primary);"><i data-lucide="flag"></i> Signaler</button>
@@ -1002,11 +1006,53 @@ async function handleCreateMarket(e) {
 }
 
 async function deleteMarket(id) {
-    if(!confirm("Êtes-vous sûr de vouloir supprimer définitivement votre marché ?")) return;
+    const market = state.markets.find(m => m.id === id);
+    if (!market) return showToast("Marché introuvable", "error");
     
-    const { error } = await supabaseClient.from('markets').delete().eq('id', id);
-    if(error) {
-        showToast("Erreur de suppression (droits insuffisants ?) : " + error.message, "error");
+    const isCreator = state.user && state.user.id === market.creator_id;
+    const isAdmin = state.session && state.session.user.email === 'the.furtive.guys@gmail.com';
+    
+    if (!isCreator && !isAdmin) {
+        return showToast("Droits insuffisants pour supprimer ce marché.", "error");
+    }
+    
+    // Règle des 4h pour les utilisateurs non-admin
+    if (isCreator && !isAdmin) {
+        const createdTime = new Date(market.created_at).getTime();
+        const nowTime = new Date().getTime();
+        const diffHours = (nowTime - createdTime) / (1000 * 60 * 60);
+        if (diffHours > 4) {
+            return showToast("Suppression impossible : vous ne pouvez supprimer votre propre marché que pendant les 4 heures suivant sa création.", "error");
+        }
+    }
+    
+    if(!confirm("Êtes-vous sûr de vouloir supprimer définitivement ce marché ?")) return;
+    
+    let deleteError = null;
+    
+    try {
+        if (isAdmin) {
+            // L'admin utilise la fonction RPC qui contourne RLS et gère la cascade proprement
+            const { error } = await supabaseClient.rpc('admin_delete_market', { market_id_param: id });
+            deleteError = error;
+        } else {
+            // Nettoyage manuel des tables dépendantes avant suppression (si pas de cascade SQL configurée)
+            try {
+                await supabaseClient.from('positions').delete().eq('market_id', id);
+                await supabaseClient.from('outcomes').delete().eq('market_id', id);
+            } catch (err) {
+                console.warn("Erreur de nettoyage en pré-suppression:", err);
+            }
+            
+            const { error } = await supabaseClient.from('markets').delete().eq('id', id);
+            deleteError = error;
+        }
+    } catch (e) {
+        deleteError = e;
+    }
+    
+    if(deleteError) {
+        showToast("Erreur de suppression : " + deleteError.message, "error");
     } else {
         showToast("Marché supprimé avec succès.", "success");
         navigateTo('home');
@@ -1257,6 +1303,11 @@ function renderProfile() {
                 </div>
             </div>
 
+            <h3 style="margin-bottom:16px; margin-top:32px; color:var(--accent-blue); display:flex; align-items:center; gap:8px;"><i data-lucide="award"></i> Résoudre les Marchés Terminés</h3>
+            <div id="adminResolveMarketsList" style="background:var(--bg-card); border:1px solid var(--border-color); border-radius:12px; padding:16px; margin-bottom:32px;">
+                <div style="text-align:center; color:var(--text-muted);">Chargement des marchés terminés...</div>
+            </div>
+
             <h3 style="margin-bottom:16px;"><i data-lucide="users"></i> Liste des Utilisateurs</h3>
             <div id="adminUserList" style="background:var(--bg-card); border:1px solid var(--border-color); border-radius:12px; overflow:hidden;">
                 <div style="padding:20px; text-align:center; color:var(--text-muted);">Chargement des utilisateurs...</div>
@@ -1264,6 +1315,7 @@ function renderProfile() {
         `;
         content.appendChild(adminSection);
         adminLoadUsers();
+        adminLoadResolveMarkets();
     }
     
     setTimeout(() => lucide.createIcons(), 50);
@@ -1365,6 +1417,200 @@ async function adminLoadUsers() {
             </tbody>
         </table>
     `;
+}
+
+async function adminLoadResolveMarkets() {
+    const container = document.getElementById('adminResolveMarketsList');
+    if (!container) return;
+    
+    try {
+        const { data: markets, error } = await supabaseClient
+            .from('markets')
+            .select('*, outcomes(*)')
+            .order('created_at', { ascending: false });
+            
+        if (error) throw error;
+        
+        // Un marché est expiré si sa date de fin est dans le passé ou aujourd'hui
+        const now = new Date();
+        now.setHours(0, 0, 0, 0);
+        
+        const expired = (markets || []).filter(m => {
+            const end = new Date(m.end_date);
+            return end <= now;
+        });
+        
+        if (expired.length === 0) {
+            container.innerHTML = `<div style="padding:20px; text-align:center; color:var(--text-muted);">Aucun marché expiré à résoudre pour le moment.</div>`;
+            return;
+        }
+        
+        container.innerHTML = expired.map(m => `
+            <div style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; padding:16px; border-bottom:1px solid var(--border-color); gap:12px;">
+                <div style="flex:1; min-width:260px;">
+                    <div style="font-weight:600; font-size:0.95rem; color:white; margin-bottom:4px;">${m.title}</div>
+                    <div style="font-size:0.8rem; color:var(--text-muted);">Fin : ${new Date(m.end_date).toLocaleDateString()} | ID : ${m.id}</div>
+                </div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <select id="resolve-outcome-${m.id}" style="padding:8px; background:var(--bg-main); border:1px solid var(--border-color); color:white; border-radius:6px; font-size:0.85rem; font-weight:600;">
+                        ${(m.outcomes || []).map(o => `<option value="${o.id}">${o.name}</option>`).join('')}
+                    </select>
+                    <button class="btn-primary" onclick="adminResolveMarket('${m.id}', '${m.title.replace(/'/g, "\\'")}')" style="background:var(--accent-green); border-color:var(--accent-green); padding:8px 16px; font-size:0.85rem; font-weight:700;">Valider et Payer</button>
+                </div>
+            </div>
+        `).join('');
+    } catch (e) {
+        container.innerHTML = `<div style="padding:20px; color:var(--accent-red); text-align:center;">Erreur de chargement : ${e.message}</div>`;
+    }
+}
+
+async function adminResolveMarket(marketId, marketTitle) {
+    const outcomeSelect = document.getElementById(`resolve-outcome-${marketId}`);
+    if (!outcomeSelect) return;
+    const winningOutcomeId = outcomeSelect.value;
+    const winningOutcomeName = outcomeSelect.options[outcomeSelect.selectedIndex].text;
+    
+    if (!confirm(`Confirmez-vous que l'issue "${winningOutcomeName}" est la gagnante pour le marché "${marketTitle}" ?\n\nCela va distribuer automatiquement les gains de 1 PLC par part gagnante à chaque participant et supprimer définitivement le marché.`)) return;
+    
+    showToast("Distribution des gains en cours...", "info");
+    
+    try {
+        // 1. Récupérer toutes les positions sur ce marché
+        const { data: positions, error: posError } = await supabaseClient
+            .from('positions')
+            .select('*')
+            .eq('market_id', marketId);
+            
+        if (posError) throw posError;
+        
+        // 2. Récupérer tous les profils pour pouvoir faire les updates de solde et emails
+        const { data: profiles, error: profError } = await supabaseClient
+            .from('profiles')
+            .select('*');
+            
+        if (profError) throw profError;
+        
+        const profileMap = {};
+        profiles.forEach(p => profileMap[p.id] = p);
+        
+        // 3. Calculer les gains par utilisateur
+        // Groupement des parts (shares) par utilisateur pour l'issue gagnante
+        const userShares = {};
+        positions.forEach(p => {
+            if (p.outcome_id === winningOutcomeId) {
+                if (!userShares[p.user_id]) userShares[p.user_id] = 0;
+                userShares[p.user_id] += p.shares;
+            }
+        });
+        
+        let payoutCount = 0;
+        
+        // 4. Distribuer les gains
+        for (const [userId, shares] of Object.entries(userShares)) {
+            if (shares > 0.01) {
+                const payoutAmount = shares; // 1 PLC par part gagnante
+                const userProfile = profileMap[userId];
+                if (!userProfile) continue;
+                
+                const newBalance = (userProfile.balance || 0) + payoutAmount;
+                
+                // Mettre à jour le profil de l'utilisateur
+                const { error: updError } = await supabaseClient
+                    .from('profiles')
+                    .update({ balance: newBalance })
+                    .eq('id', userId);
+                    
+                if (updError) console.error("Erreur mise à jour profil:", updError);
+                
+                // Insérer la transaction
+                const { error: txError } = await supabaseClient
+                    .from('transactions')
+                    .insert({
+                        sender_id: state.user.id, // Admin
+                        receiver_id: userId,
+                        amount: payoutAmount,
+                        transfer_amount: payoutAmount,
+                        sender_email: 'the.furtive.guys@gmail.com',
+                        receiver_email: userProfile.email,
+                        description: `Bravo vous gagné: ${payoutAmount.toFixed(2)} PLC sur le marché '${marketTitle}'`
+                    });
+                    
+                if (txError) console.error("Erreur insertion transaction:", txError);
+                
+                payoutCount++;
+            }
+        }
+        
+        // 5. Supprimer définitivement le marché de la plateforme via la fonction RPC admin_delete_market
+        const { error: delError } = await supabaseClient.rpc('admin_delete_market', { market_id_param: marketId });
+        if (delError) throw delError;
+        
+        showToast(`Résolu avec succès ! ${payoutCount} gagnant(s) payé(s) et marché supprimé.`, "success");
+        
+        // Rafraîchir les données
+        await fetchUserProfile(state.session.user.id);
+        await loadMarkets();
+        adminLoadResolveMarkets();
+    } catch(e) {
+        console.error(e);
+        showToast("Erreur lors de la résolution: " + e.message, "error");
+    }
+}
+
+async function checkUnshownPayouts() {
+    if (!state.isLoggedIn || !state.user || !supabaseClient) return;
+    try {
+        const userId = state.user.id;
+        const { data: txs } = await supabaseClient
+            .from('transactions')
+            .select('*')
+            .eq('receiver_id', userId)
+            .order('created_at', { ascending: false })
+            .limit(10);
+            
+        if (txs && txs.length > 0) {
+            const shownIds = JSON.parse(localStorage.getItem('pb_shown_payouts') || '[]');
+            let updated = false;
+            
+            for (const t of txs) {
+                const desc = t.description || '';
+                
+                // Si la transaction est un gain de pari et n'a pas été affichée
+                if (desc.startsWith("Bravo vous gagné") && !shownIds.includes(t.id)) {
+                    shownIds.push(t.id);
+                    updated = true;
+                    
+                    // Affiche la pop-up célébration
+                    showPayoutWinningPopup(desc);
+                }
+            }
+            
+            if (updated) {
+                localStorage.setItem('pb_shown_payouts', JSON.stringify(shownIds));
+                // Optionnel : recharger le profil pour mettre à jour le solde affiché
+                fetchUserProfile(state.user.id);
+            }
+        }
+    } catch(e) {
+        console.error("Erreur vérification gains:", e);
+    }
+}
+
+function showPayoutWinningPopup(message) {
+    // Transformer "Bravo vous gagné: X.XX PLC sur le marché 'Title'" en quelque chose de très propre
+    let displayMsg = message;
+    if (message.includes("Bravo vous gagné:")) {
+        const parts = message.split("sur le marché");
+        const amountPart = parts[0].replace("Bravo vous gagné:", "").trim();
+        const marketPart = parts[1] ? parts[1].trim() : "";
+        displayMsg = `Vous avez gagné ${amountPart} PLC ${marketPart ? `sur le marché ${marketPart}` : ''} !`;
+    }
+    
+    const msgEl = document.getElementById('payoutWinnerMessage');
+    if (msgEl) {
+        msgEl.innerText = displayMsg;
+        openModal('payoutWinnerModal');
+    }
 }
 
 function confirmDeleteAccount() {

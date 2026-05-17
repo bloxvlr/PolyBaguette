@@ -787,3 +787,9 @@ a:hover {
     .btn-buy-yes, .btn-buy-no { font-size: 0.82rem; }
 }
 
+/* ===== ANIMATIONS ===== */
+@keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+}
+
