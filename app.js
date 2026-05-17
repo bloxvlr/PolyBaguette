@@ -948,6 +948,18 @@ async function handleCreateMarket(e) {
     e.preventDefault();
     if(!state.isLoggedIn) return showToast("Connectez-vous", "error");
     
+    // Anti-spam cooldown check (5 minutes) for non-admins
+    const lastCreated = localStorage.getItem('pb_last_market_created');
+    const now = Date.now();
+    const isAdmin = state.session && state.session.user.email === 'the.furtive.guys@gmail.com';
+    if (lastCreated && !isAdmin) {
+        const diff = now - parseInt(lastCreated, 10);
+        if (diff < 5 * 60 * 1000) {
+            const minutesLeft = Math.ceil((5 * 60 * 1000 - diff) / 60000);
+            return showToast(`Anti-Spam : Veuillez patienter ${minutesLeft} minute(s) avant de créer un autre marché.`, "error");
+        }
+    }
+    
     const title = document.getElementById('cmQuestion').value;
     const category = document.getElementById('cmCategory').value;
     const endDate = document.getElementById('cmEndDate').value;
@@ -1021,7 +1033,10 @@ async function handleCreateMarket(e) {
     btn.disabled = false;
     btn.innerText = "Ouvrir le Marché";
     closeModal('createMarketModal');
-    if (!outError) showToast("Votre Marché est publié !", "success");
+    if (!outError) {
+        localStorage.setItem('pb_last_market_created', Date.now().toString());
+        showToast("Votre Marché est publié !", "success");
+    }
 }
 
 async function deleteMarket(id) {
