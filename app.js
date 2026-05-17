@@ -79,6 +79,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // Vérification périodique des gains de paris
     setInterval(checkUnshownPayouts, 10000);
+    
+    // Vérification du consentement des cookies
+    checkCookieConsent();
 });
 
 // --- AUTH & PROFILES ---
@@ -139,7 +142,183 @@ async function fetchUserProfile(userId) {
         state.isLoggedIn = true;
         updateAuthUI();
         checkUnshownPayouts();
+        
+        // Vérification des CGU à la connexion
+        checkCGUAcceptance();
     }
+}
+
+// --- CGU ACCEPTANCE CHECK & RESOLUTION ---
+
+function checkCGUAcceptance() {
+    if (!state.isLoggedIn || !state.user) return;
+    
+    // Check if accepted in user metadata or database profile
+    const acceptedInMetadata = state.session?.user?.user_metadata?.cgu_accepted === true;
+    const acceptedInProfile = state.user?.cgu_accepted === true;
+    
+    if (!acceptedInMetadata && !acceptedInProfile) {
+        // Show blocking CGU overlay modal
+        document.getElementById('blockingCGUModal').classList.add('active');
+    }
+}
+
+function toggleCGUButtonState() {
+    const checkbox = document.getElementById('cguCheckboxAccept');
+    const btn = document.getElementById('btnAcceptCGUOnlyOnce');
+    if (checkbox && btn) {
+        btn.disabled = !checkbox.checked;
+        if (checkbox.checked) {
+            btn.classList.add('active-yes');
+        } else {
+            btn.classList.remove('active-yes');
+        }
+    }
+}
+
+async function acceptCGU() {
+    if (!state.isLoggedIn || !state.user) return;
+    
+    const checkbox = document.getElementById('cguCheckboxAccept');
+    if (!checkbox || !checkbox.checked) {
+        showToast("Veuillez cocher la case pour accepter les CGU", "error");
+        return;
+    }
+    
+    const btn = document.getElementById('btnAcceptCGUOnlyOnce');
+    btn.disabled = true;
+    btn.innerText = "Cuisson en cours...";
+    
+    try {
+        // 1. Enregistrement persistant dans le metadata auth (toujours accessible)
+        const { error: authError } = await supabaseClient.auth.updateUser({
+            data: { cgu_accepted: true }
+        });
+        
+        if (authError) console.error("Metadata update error:", authError);
+        
+        // 2. Essai de mise à jour dans la table profiles (au cas où la colonne existe)
+        try {
+            await supabaseClient.from('profiles').update({
+                cgu_accepted: true
+            }).eq('id', state.user.id);
+        } catch (dbError) {
+            console.warn("La colonne cgu_accepted n'existe peut-être pas encore sur profiles (c'est normal, le fallback métadonnées prend le relais) :", dbError);
+        }
+        
+        // Mise à jour de l'état local
+        if (state.user) state.user.cgu_accepted = true;
+        if (state.session?.user?.user_metadata) state.session.user.user_metadata.cgu_accepted = true;
+        
+        document.getElementById('blockingCGUModal').classList.remove('active');
+        showToast("Conditions acceptées ! Bienvenue sur PolyBaguette 🥖", "success");
+    } catch (err) {
+        console.error("CGU acceptance error:", err);
+        showToast("Une erreur est survenue lors de l'enregistrement", "error");
+    } finally {
+        btn.disabled = false;
+        btn.innerText = "Enfourner (Accepter et Continuer) 🥖";
+    }
+}
+
+// --- COOKIE BANNER & PREFERENCES ---
+
+function checkCookieConsent() {
+    const consent = localStorage.getItem('pb_cookie_consent');
+    if (!consent) {
+        document.getElementById('cookieBanner').style.display = 'flex';
+    } else {
+        try {
+            const consentData = JSON.parse(consent);
+            applyCookieConsent(consentData);
+        } catch(e) {
+            document.getElementById('cookieBanner').style.display = 'flex';
+        }
+    }
+}
+
+function acceptAllCookies() {
+    const consentData = {
+        necessary: true,
+        analytics: true,
+        features: true,
+        timestamp: Date.now()
+    };
+    localStorage.setItem('pb_cookie_consent', JSON.stringify(consentData));
+    document.getElementById('cookieBanner').style.display = 'none';
+    applyCookieConsent(consentData);
+    showToast("Cookies acceptés ! Bonne dégustation 🍪", "success");
+}
+
+function refuseAllCookies() {
+    const consentData = {
+        necessary: true,
+        analytics: false,
+        features: false,
+        timestamp: Date.now()
+    };
+    localStorage.setItem('pb_cookie_consent', JSON.stringify(consentData));
+    document.getElementById('cookieBanner').style.display = 'none';
+    applyCookieConsent(consentData);
+    showToast("Cookies optionnels refusés", "info");
+}
+
+function openCookieSettingsModal() {
+    const consent = localStorage.getItem('pb_cookie_consent');
+    if (consent) {
+        try {
+            const data = JSON.parse(consent);
+            document.getElementById('cookieAnalytics').checked = data.analytics;
+            document.getElementById('cookieFeatures').checked = data.features;
+        } catch(e) {}
+    }
+    openModal('cookieSettingsModal');
+}
+
+function saveCustomCookies() {
+    const analytics = document.getElementById('cookieAnalytics').checked;
+    const features = document.getElementById('cookieFeatures').checked;
+    
+    const consentData = {
+        necessary: true,
+        analytics: analytics,
+        features: features,
+        timestamp: Date.now()
+    };
+    
+    localStorage.setItem('pb_cookie_consent', JSON.stringify(consentData));
+    document.getElementById('cookieBanner').style.display = 'none';
+    closeModal('cookieSettingsModal');
+    applyCookieConsent(consentData);
+    showToast("Préférences de cookies enregistrées", "success");
+}
+
+function applyCookieConsent(consentData) {
+    console.log("Cookie consent applied:", consentData);
+}
+
+// --- LEGAL TABS & MODALS ---
+
+function switchLegalTab(tabId) {
+    // Remove active class from all tabs & contents
+    document.querySelectorAll('.legal-tab-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.legal-tab-content').forEach(content => content.classList.remove('active'));
+    
+    // Add active class to selected tab & content
+    const activeBtn = document.getElementById('legal-tab-btn-' + tabId);
+    const activeContent = document.getElementById('legal-tab-content-' + tabId);
+    
+    if (activeBtn) activeBtn.classList.add('active');
+    if (activeContent) activeContent.classList.add('active');
+}
+
+function openLegalModal(initialTab) {
+    if (initialTab) {
+        switchLegalTab(initialTab);
+    } else {
+        switchLegalTab('cgu');
+    }
+    openModal('legalModal');
 }
 
 function updateAuthUI() {

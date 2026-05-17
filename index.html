@@ -273,6 +273,25 @@
         </div>
     </main>
 
+    <!-- FOOTER -->
+    <footer class="footer">
+        <div class="footer-content">
+            <div class="footer-left">
+                <span class="logo-text">🥖 PolyBaguette</span>
+                <p>La première plateforme de marchés prédictifs à la française. Pariez sur l'avenir avec vos PolyCoins (PLC) fictifs !</p>
+            </div>
+            <div class="footer-links">
+                <a onclick="openLegalModal('cgu')">Conditions Générales d'Utilisation (CGU)</a>
+                <a onclick="openLegalModal('mentions')">Mentions Légales</a>
+                <a onclick="openLegalModal('rgpd')">Politique de Confidentialité (RGPD)</a>
+                <a onclick="openCookieSettingsModal()">Gestion des Cookies</a>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2026 PolyBaguette. Tous droits réservés. Les PolyCoins (PLC) sont une monnaie virtuelle fictive sans valeur réelle. Projet récréatif.</p>
+        </div>
+    </footer>
+
     <!-- LOGIN MODAL -->
     <div class="modal-overlay" id="loginModal">
         <div class="modal">
@@ -407,6 +426,198 @@
     <button class="fab" id="fabCreate" onclick="openModal('createMarketModal')" style="display:none" title="Ouvrir un Marché">
         <i data-lucide="plus"></i>
     </button>
+
+    <!-- COOKIE BANNER -->
+    <div class="cookie-banner" id="cookieBanner">
+        <div class="cookie-title">🍪 Cookies Croustillants</div>
+        <div class="cookie-text">
+            PolyBaguette utilise des cookies pour assurer le bon fonctionnement du site (authentification), mesurer notre audience (anonyme) et rendre votre expérience plus agréable.
+        </div>
+        <div class="cookie-buttons">
+            <button class="btn-primary" onclick="acceptAllCookies()">Tout Accepter</button>
+            <button class="btn-secondary" onclick="refuseAllCookies()">Refuser</button>
+        </div>
+        <div class="cookie-customize-link" onclick="openCookieSettingsModal()">Personnaliser les choix</div>
+    </div>
+
+    <!-- COOKIE SETTINGS MODAL -->
+    <div class="modal-overlay" id="cookieSettingsModal">
+        <div class="modal">
+            <button class="modal-close" onclick="closeModal('cookieSettingsModal')">×</button>
+            <div class="modal-header">
+                <i data-lucide="cookie" style="width: 48px; height: 48px; color: var(--text-primary); margin-bottom: 16px;"></i>
+                <h2>Gestion des Cookies</h2>
+                <p>Configurez vos préférences pour les cookies sur PolyBaguette.</p>
+            </div>
+            <div style="display: flex; flex-direction: column;">
+                <div class="cookie-option">
+                    <div class="cookie-option-info">
+                        <div class="cookie-option-title">Essentiels (Requis)</div>
+                        <div class="cookie-option-desc">Cookies nécessaires au fonctionnement du site, pour gérer votre session sécurisée.</div>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" checked disabled>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div class="cookie-option">
+                    <div class="cookie-option-info">
+                        <div class="cookie-option-title">Mesure d'Audience</div>
+                        <div class="cookie-option-desc">Statistiques anonymes de visites pour améliorer la cuisson de nos pages.</div>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="cookieAnalytics" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div class="cookie-option">
+                    <div class="cookie-option-info">
+                        <div class="cookie-option-title">Fonctionnalités locales</div>
+                        <div class="cookie-option-desc">Mémorisation de vos favoris et de vos préférences de navigation.</div>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="cookieFeatures" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <button onclick="saveCustomCookies()" class="btn-primary btn-full" style="margin-top: 24px;">Sauvegarder mes choix</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- LEGAL DEDICATED MODAL (CGU, Mentions, RGPD) -->
+    <div class="modal-overlay" id="legalModal">
+        <div class="modal modal-lg">
+            <button class="modal-close" onclick="closeModal('legalModal')">×</button>
+            <div class="legal-tabs">
+                <button class="legal-tab-btn active" id="legal-tab-btn-cgu" onclick="switchLegalTab('cgu')">CGU</button>
+                <button class="legal-tab-btn" id="legal-tab-btn-mentions" onclick="switchLegalTab('mentions')">Mentions Légales</button>
+                <button class="legal-tab-btn" id="legal-tab-btn-rgpd" onclick="switchLegalTab('rgpd')">RGPD</button>
+            </div>
+
+            <!-- CGU CONTENT -->
+            <div class="legal-tab-content active" id="legal-tab-content-cgu">
+                <h3>Conditions Générales d'Utilisation (CGU)</h3>
+                <p><strong>Dernière mise à jour : 17 mai 2026</strong></p>
+                <p>Bienvenue sur PolyBaguette, la plateforme de simulation de marchés prédictifs à la française.</p>
+                
+                <h3>1. Description du Service</h3>
+                <p>PolyBaguette est un outil de simulation et de divertissement. Les utilisateurs peuvent spéculer sur la résolution d'événements futurs à l'aide de "PolyCoins" (PLC), une monnaie virtuelle fictive.</p>
+                
+                <h3>2. Absolue Fictivité de la Monnaie (PolyCoin - PLC)</h3>
+                <p style="color: var(--accent-red); font-weight: bold; background: rgba(239, 68, 68, 0.05); padding: 12px; border-radius: 8px; border: 1px dashed rgba(239, 68, 68, 0.3);">
+                    ⚠️ ATTENTION : Le PolyCoin (PLC) est un jeton d'amusement n'ayant AUCUNE VALEUR MONÉTAIRE, FINANCIÈRE OU ÉCONOMIQUE RÉELLE. Il ne peut être converti, vendu, racheté ou échangé contre des Euros, Dollars, crypto-monnaies réelles ou tout autre bien réel. Toute transaction de PLC effectuée sur ce site est purement simulée.
+                </p>
+                
+                <h3>3. Inscription et Solde de Bienvenue</h3>
+                <p>Lors de votre première inscription via Google Auth, un compte est créé et vous recevez 100 PLC offerts pour commencer à simuler vos paris. Ce crédit est gratuit et fictif.</p>
+                
+                <h3>4. Responsabilité des Marchés & Modération</h3>
+                <p>Les utilisateurs ont la possibilité de créer des marchés prédictifs. Tout marché créé doit être formulé de manière claire, décente, polie et légale. Les propos haineux, offensants, obscènes ou discriminatoires sont strictement interdits.</p>
+                <p>Les administrateurs se réservent le droit exclusif de modifier, résoudre ou supprimer tout marché prédictif ou de rééquilibrer les liquidités en cas de triche ou de dysfonctionnement.</p>
+                
+                <h3>5. Comportements Interdits & Bannissement</h3>
+                <p>Sont strictement interdits : l'exploitation de bugs, l'utilisation de scripts automatisés non autorisés, la création de comptes multiples pour manipuler les cours (sybil attacks), ainsi que l'usurpation d'identité.</p>
+                <p>Tout manquement à ces règles entraînera un bannissement définitif du compte par les administrateurs et la perte irréversible de l'accès au portefeuille virtuel.</p>
+            </div>
+
+            <!-- MENTIONS LEGALES CONTENT -->
+            <div class="legal-tab-content" id="legal-tab-content-mentions">
+                <h3>Mentions Légales</h3>
+                <p>Conformément à l'article 6 de la loi n° 2004-575 du 21 juin 2004 pour la confiance dans l'économie numérique (LCEN) :</p>
+                
+                <h3>1. Éditeur du Site</h3>
+                <p>Le site <strong>PolyBaguette</strong> est un projet de démonstration technique et récréative à but non commercial, édité à titre personnel par le collectif d'étudiants et développeurs "Les Furtifs", résidant en France.</p>
+                <p>Directeur de la publication : Le Chef Boulanger de PolyBaguette.</p>
+                <p>Contact Email : <a href="mailto:the.furtive.guys@gmail.com">the.furtive.guys@gmail.com</a></p>
+                
+                <h3>2. Hébergeur du Site</h3>
+                <p><strong>Frontend (Site Web) :</strong> GitHub Pages / Vercel Inc. (San Francisco, USA)</p>
+                <p><strong>Backend (Base de données) :</strong> Supabase Inc., 970 Summer St, Stamford, CT 06905, USA.</p>
+                
+                <h3>3. Limitation de Responsabilité</h3>
+                <p>L'éditeur s'efforce de maintenir la plateforme accessible et fonctionnelle. Cependant, s'agissant d'une simulation gratuite et récréative, l'éditeur ne peut être tenu responsable des interruptions de service, pannes informatiques, dysfonctionnements du système de paris ou pertes de données de portefeuilles virtuels (PLC).</p>
+            </div>
+
+            <!-- RGPD CONTENT -->
+            <div class="legal-tab-content" id="legal-tab-content-rgpd">
+                <h3>Politique de Confidentialité (RGPD)</h3>
+                <p><strong>Dernière mise à jour : 17 mai 2026</strong></p>
+                <p>Nous prenons la protection de vos données privées au sérieux. Voici comment nous traitons vos informations sur PolyBaguette.</p>
+                
+                <h3>1. Données Collectées</h3>
+                <p>Nous collectons uniquement les données fournies par Google lors de votre connexion via Google Auth :</p>
+                <ul>
+                    <li>Votre adresse e-mail.</li>
+                    <li>Votre nom public Google (utilisé comme pseudonyme initial).</li>
+                    <li>L'URL de votre photo de profil Google.</li>
+                </ul>
+                <p>De plus, nous enregistrons votre activité sur le site afin de maintenir l'historique du jeu : solde de PLC, transactions envoyées et reçues, paris effectués (positions ouvertes), et marchés créés.</p>
+                
+                <h3>2. Finalité du Traitement</h3>
+                <p>Ces données sont strictement nécessaires pour :</p>
+                <ul>
+                    <li>Assurer votre connexion sécurisée à votre compte de jeu.</li>
+                    <li>Gérer votre portefeuille de PolyCoins (PLC) virtuels.</li>
+                    <li>Afficher le classement public (Leaderboard) des joueurs les plus riches.</li>
+                    <li>Permettre le transfert de PLC entre utilisateurs.</li>
+                </ul>
+                
+                <h3>3. Durée de Conservation</h3>
+                <p>Vos données sont conservées pendant toute la durée de vie active de votre compte. Vous pouvez demander la suppression complète de votre compte à tout moment.</p>
+                
+                <h3>4. Sécurité des Données</h3>
+                <p>Toutes nos données sont sécurisées et stockées de manière chiffrée par notre hébergeur Supabase. Nous ne vendons et ne transmettons aucune donnée personnelle à des tiers.</p>
+                
+                <h3>5. Vos Droits</h3>
+                <p>Conformément au RGPD et à la loi Informatique et Libertés, vous disposez d'un droit d'accès, de rectification et d'effacement de vos données personnelles. Pour exercer ce droit, contactez-nous à : <a href="mailto:the.furtive.guys@gmail.com">the.furtive.guys@gmail.com</a>.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- MANDATORY CGU ACCEPTANCE OVERLAY (For new users / first login) -->
+    <div class="blocking-cgu-modal-overlay" id="blockingCGUModal">
+        <div class="blocking-cgu-card">
+            <span class="blocking-cgu-logo">📜</span>
+            <h2>Avant d'entrer à la boulangerie...</h2>
+            <p class="subtitle">Pour continuer sur PolyBaguette, vous devez lire et accepter nos conditions légales.</p>
+            
+            <div class="blocking-cgu-summary">
+                <div class="blocking-cgu-item">
+                    <span class="blocking-cgu-item-icon">🥖</span>
+                    <div class="blocking-cgu-item-text">
+                        <h4>Simulation 100% Fictive</h4>
+                        <p>Les PolyCoins (PLC) sont une monnaie virtuelle d'amusement sans aucune valeur financière ou monétaire réelle. Aucun gain réel n'est possible.</p>
+                    </div>
+                </div>
+                <div class="blocking-cgu-item">
+                    <span class="blocking-cgu-item-icon">🔒</span>
+                    <div class="blocking-cgu-item-text">
+                        <h4>Protection des Données (RGPD)</h4>
+                        <p>We collect your email and Google username only to secure your account and score. Your data is never sold or shared.</p>
+                    </div>
+                </div>
+                <div class="blocking-cgu-item">
+                    <span class="blocking-cgu-item-icon">⚖️</span>
+                    <div class="blocking-cgu-item-text">
+                        <h4>Charte d'Utilisation</h4>
+                        <p>Les comportements toxiques, insultants ou les tentatives de manipulation de cours artificielles entraînent un bannissement immédiat.</p>
+                    </div>
+                </div>
+            </div>
+
+            <label class="cgu-checkbox-container" id="cguCheckboxContainerLabel">
+                <input type="checkbox" id="cguCheckboxAccept" onchange="toggleCGUButtonState()">
+                <span>
+                    J'accepte sans réserve les <a onclick="openLegalModal('cgu')">Conditions Générales d'Utilisation (CGU)</a>, les <a onclick="openLegalModal('mentions')">Mentions Légales</a> et la <a onclick="openLegalModal('rgpd')">Politique de Confidentialité (RGPD)</a> de PolyBaguette.
+                </span>
+            </label>
+
+            <button class="btn-trade btn-full" id="btnAcceptCGUOnlyOnce" onclick="acceptCGU()" disabled style="font-size: 1.15rem; font-weight: 700; border-radius: 12px; padding: 16px;">
+                Enfourner (Accepter et Continuer) 🥖
+            </button>
+        </div>
+    </div>
 
     <script src="app.js"></script>
 </body>
