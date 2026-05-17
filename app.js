@@ -26,6 +26,18 @@ const formatVol = (vol) => {
     return '$' + vol;
 };
 
+const escapeHTML = (str) => {
+    if (!str) return '';
+    if (typeof str !== 'string') str = String(str);
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+};
+
+
 document.addEventListener('DOMContentLoaded', async () => {
     try {
         if (window.lucide) lucide.createIcons();
@@ -397,12 +409,12 @@ function renderMarkets(marketsData) {
         const isFav = favs.includes(featured.id);
         fmElement.innerHTML = `
             <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
-                <span style="font-size:0.8rem; color:var(--accent-blue); font-weight:700; text-transform:uppercase; letter-spacing:1px;">🔥 ${featured.category}</span>
+                <span style="font-size:0.8rem; color:var(--accent-blue); font-weight:700; text-transform:uppercase; letter-spacing:1px;">🔥 ${escapeHTML(featured.category)}</span>
             </div>
             <div style="display:flex; gap:16px; align-items:flex-start; margin-bottom:20px;">
                 <img src="${featured.icon_url || 'https://picsum.photos/100'}" style="width:48px; height:48px; border-radius:50%; object-fit:cover;">
                 <div style="flex:1;">
-                    <div style="font-size:1.4rem; font-weight:700; line-height:1.3; margin-bottom:6px;">${featured.title}</div>
+                    <div style="font-size:1.4rem; font-weight:700; line-height:1.3; margin-bottom:6px;">${escapeHTML(featured.title)}</div>
                     <div style="font-size:0.9rem; color:var(--text-muted);">${formatVol(featured.volume||0)} Vol. &nbsp;·&nbsp; Se termine le ${new Date(featured.end_date).toLocaleDateString()}</div>
                 </div>
                 <div style="display:flex; gap:10px;">
@@ -415,7 +427,7 @@ function renderMarkets(marketsData) {
                     const isBinary = o.name.toLowerCase() === 'oui' || o.name.toLowerCase() === 'non';
                     return `
                     <div style="display:flex; align-items:center; justify-content:space-between;">
-                        <span style="font-size:1rem; font-weight:500; color:var(--text-secondary);">${o.name}</span>
+                        <span style="font-size:1rem; font-weight:500; color:var(--text-secondary);">${escapeHTML(o.name)}</span>
                         <div style="display:flex; align-items:center; gap:12px;">
                             <span style="font-size:1.1rem; font-weight:700;">${Math.round(o.probability)}%</span>
                             ${isBinary ? `
@@ -446,7 +458,7 @@ function renderMarkets(marketsData) {
         <div class="market-card" onclick="openMarketDetail('${m.id}')" style="display:flex; flex-direction:column; min-height: 200px;">
             <div class="mc-header" style="display: flex; gap: 12px; align-items: flex-start; margin-bottom: 20px;">
                 <img src="${m.icon_url || 'https://picsum.photos/100'}" class="mc-icon" style="width: 36px; height: 36px; border-radius: 50%; object-fit: cover;">
-                <div class="mc-title" style="font-weight: 600; font-size: 1.05rem; line-height: 1.3; color: var(--text-primary);">${m.title}</div>
+                <div class="mc-title" style="font-weight: 600; font-size: 1.05rem; line-height: 1.3; color: var(--text-primary);">${escapeHTML(m.title)}</div>
             </div>
             <div class="mc-outcomes" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 24px;">
                 ${(!m.outcomes || m.outcomes.length === 0) ? `
@@ -475,7 +487,7 @@ function renderMarkets(marketsData) {
                     const isBinary = o.name.toLowerCase() === 'oui' || o.name.toLowerCase() === 'non';
                     return `
                     <div class="mc-outcome-row" style="display:flex;align-items:center;justify-content:space-between;">
-                        <span style="color:var(--text-secondary);font-size:0.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px;font-weight:500;">${o.name}</span>
+                        <span style="color:var(--text-secondary);font-size:0.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px;font-weight:500;">${escapeHTML(o.name)}</span>
                         <div style="display:flex;align-items:center;gap:12px;">
                             ${(m.volume === 0 && index === 0) ? '<span style="background:var(--accent-blue);color:white;padding:2px 6px;border-radius:4px;font-size:0.7rem;font-weight:700;text-transform:uppercase;">Nouveau</span>' : ''}
                             <span style="font-weight:600;font-size:1rem;color:var(--text-primary);">${Math.round(o.probability)}%</span>
@@ -576,14 +588,14 @@ async function openMarketDetail(id) {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.getElementById('marketPage').classList.add('active');
     
-    document.getElementById('marketBreadcrumb').innerHTML = `Marchés > ${market.category} > ${market.title}`;
+    document.getElementById('marketBreadcrumb').innerHTML = `Marchés > ${escapeHTML(market.category)} > ${escapeHTML(market.title)}`;
     
     document.getElementById('marketDetailHeader').innerHTML = `
         <div style="display:flex; justify-content:space-between; align-items:flex-start; width:100%;">
             <div style="display:flex; gap:16px;">
                 <img src="${market.icon_url || 'https://picsum.photos/100'}" class="md-icon">
                 <div>
-                    <div class="md-title">${market.title}</div>
+                    <div class="md-title">${escapeHTML(market.title)}</div>
                     <div class="md-stats">
                         <span id="marketVolumeUI"><i data-lucide="award" class="icon-sm"></i> ${formatVol(realVolume)} Vol.</span>
                         <span><i data-lucide="calendar" class="icon-sm"></i> ${new Date(market.end_date).toLocaleDateString()}</span>
@@ -601,7 +613,7 @@ async function openMarketDetail(id) {
     
     document.getElementById('tradingPanelHeader').innerHTML = `
         <img src="${market.icon_url || 'https://picsum.photos/100'}" class="tp-icon">
-        <div class="tp-title">${market.title}</div>
+        <div class="tp-title">${escapeHTML(market.title)}</div>
     `;
     
     state.chartTimeframe = 'all';
@@ -616,7 +628,7 @@ async function openMarketDetail(id) {
     
     document.getElementById('marketTabContent').innerHTML = `
         <h3>Règles du marché</h3>
-        <p>${market.description}</p>
+        <p>${escapeHTML(market.description)}</p>
     `;
     setTimeout(() => lucide.createIcons(), 50);
 }
@@ -854,7 +866,10 @@ function updateTradePreview() {
 async function executeTrade() {
     if(!state.isLoggedIn) return showToast("Vous devez être connecté", "error");
     if(!state.selectedOutcome) return showToast("Erreur : Ce marché n'a aucune issue disponible.", "error");
-    if(state.tradeAmount <= 0) return;
+    const parsedAmount = parseFloat(state.tradeAmount);
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+        return showToast("Montant de transaction invalide.", "error");
+    }
     
     const isBuy = state.tradeMode === 'buy';
     const prob = state.selectedOutcome.probability / 100;
@@ -937,6 +952,10 @@ async function handleCreateMarket(e) {
     const category = document.getElementById('cmCategory').value;
     const endDate = document.getElementById('cmEndDate').value;
     const liquidity = parseFloat(document.getElementById('cmLiquidity').value);
+    if (isNaN(liquidity) || liquidity <= 0) {
+        showToast("La liquidité doit être un nombre positif.", "error");
+        return;
+    }
     const desc = document.getElementById('cmDescription').value;
     const iconUrl = document.getElementById('cmIcon').value;
     
@@ -1112,14 +1131,14 @@ function handleSearch() {
         if (mResults.length > 0) {
             html += '<div class="sr-cat">Marchés</div>';
             mResults.slice(0, 3).forEach(m => {
-                html += `<div class="sr-item" onclick="openMarketDetail('${m.id}'); document.getElementById('searchResults').style.display='none';">${m.title}</div>`;
+                html += `<div class="sr-item" onclick="openMarketDetail('${m.id}'); document.getElementById('searchResults').style.display='none';">${escapeHTML(m.title)}</div>`;
             });
         }
         if (uResults && uResults.length > 0) {
             html += '<div class="sr-cat">Boulangers</div>';
             uResults.forEach(u => {
                 html += `<div class="sr-item" style="display:flex; align-items:center; gap:8px;">
-                    <img src="${u.avatar_url || 'https://picsum.photos/30'}" style="width:24px; height:24px; border-radius:50%"> ${u.username}
+                    <img src="${u.avatar_url || 'https://picsum.photos/30'}" style="width:24px; height:24px; border-radius:50%"> ${escapeHTML(u.username)}
                 </div>`;
             });
         }
@@ -1165,8 +1184,8 @@ async function renderPortfolio() {
         <div class="position-card">
             <div class="pos-market">
                 <div>
-                    <div class="pos-title">${p.markets.title}</div>
-                    <span class="pos-outcome">${p.outcomes.name}</span>
+                    <div class="pos-title">${escapeHTML(p.markets.title)}</div>
+                    <span class="pos-outcome">${escapeHTML(p.outcomes.name)}</span>
                 </div>
             </div>
             <div class="pos-stats">
@@ -1204,8 +1223,8 @@ async function renderLeaderboard() {
             <div class="lb-row">
                 <div class="lb-rank">${i+1}</div>
                 <div class="lb-user">
-                    ${u.avatar_url ? `<img src="${u.avatar_url}" class="lb-avatar" style="object-fit:cover">` : `<div class="lb-avatar">${u.username[0]}</div>`}
-                    ${u.username}
+                    ${u.avatar_url ? `<img src="${u.avatar_url}" class="lb-avatar" style="object-fit:cover">` : `<div class="lb-avatar">${escapeHTML(u.username[0])}</div>`}
+                    ${escapeHTML(u.username)}
                 </div>
                 <div class="lb-score">${formatPC(u.balance)} PLC</div>
             </div>
@@ -1222,10 +1241,10 @@ function renderProfile() {
         <div class="profile-header">
             ${state.user.avatar_url 
                 ? `<img src="${state.user.avatar_url}" class="profile-avatar-large" style="object-fit: cover;">`
-                : `<div class="profile-avatar-large">${state.user.username[0].toUpperCase()}</div>`
+                : `<div class="profile-avatar-large">${escapeHTML(state.user.username[0].toUpperCase())}</div>`
             }
             <div class="profile-info">
-                <h1>${state.user.username} <button style="background:none; border:none; cursor:pointer; color:var(--text-muted)" onclick="openEditProfile()"><i data-lucide="edit-2" class="icon-sm"></i></button></h1>
+                <h1>${escapeHTML(state.user.username)} <button style="background:none; border:none; cursor:pointer; color:var(--text-muted)" onclick="openEditProfile()"><i data-lucide="edit-2" class="icon-sm"></i></button></h1>
                 <div class="profile-date">Inscrit le ${new Date(state.user.created_at).toLocaleDateString()}</div>
             </div>
         </div>
@@ -1405,8 +1424,8 @@ async function adminLoadUsers() {
             <tbody>
                 ${data.map(u => `
                     <tr style="border-top:1px solid var(--border-color); ${u.banned ? 'background:rgba(235,87,87,0.05);' : ''}">
-                        <td style="padding:12px;">${u.username}</td>
-                        <td style="padding:12px; color:var(--text-muted);">${u.email}</td>
+                        <td style="padding:12px;">${escapeHTML(u.username)}</td>
+                        <td style="padding:12px; color:var(--text-muted);">${escapeHTML(u.email)}</td>
                         <td style="padding:12px; font-weight:600;">${u.balance.toFixed(2)} PLC</td>
                         <td style="padding:12px;">
                             ${u.banned ? '<span style="color:var(--accent-red); font-weight:700;">BANNI</span>' : '<span style="color:var(--accent-green);">ACTIF</span>'}
@@ -1652,7 +1671,7 @@ async function loadRecentTransactions() {
                 <div onclick="openMarketDetail('${m.id}')" style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border-color);cursor:pointer;">
                     <span style="color:var(--text-muted);font-weight:700;min-width:18px;">${i+1}</span>
                     <div style="flex:1;min-width:0;">
-                        <div style="font-size:0.9rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${m.title}</div>
+                        <div style="font-size:0.9rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHTML(m.title)}</div>
                         <div style="font-size:0.8rem;color:var(--text-muted);">${formatVol(m.volume||0)} Vol.</div>
                     </div>
                     <div style="text-align:right;">
@@ -1685,10 +1704,10 @@ async function loadRecentTransactions() {
                     return `
                         <div style="padding:10px 0;border-bottom:1px solid var(--border-color);font-size:0.85rem;">
                             <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
-                                <span style="font-weight:600;">${username}</span>
+                                <span style="font-weight:600;">${escapeHTML(username)}</span>
                                 <span style="color:${color};font-weight:700;">${isBuy ? '+' : '-'}${Math.abs(p.invested_amount).toFixed(1)} PLC</span>
                             </div>
-                            <div style="color:var(--text-muted);">${action} <b style="color:var(--text-primary);">${outcome}</b> sur ${market}</div>
+                            <div style="color:var(--text-muted);">${action} <b style="color:var(--text-primary);">${escapeHTML(outcome)}</b> sur ${escapeHTML(market)}</div>
                         </div>
                     `;
                 }).join('');
